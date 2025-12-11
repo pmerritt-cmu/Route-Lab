@@ -1172,7 +1172,7 @@ def importData(app):
                         (playerInfo["routeDX2"],
                         playerInfo["routeDY2"]))
             if "WR" in position:
-                formationRes[position] = WideReceiver(playerInfo["cx"],
+                formationRes[position] = WideReceiver(app, playerInfo["cx"],
                             playerInfo["cy"],playerInfo["dx"], 
                             playerInfo["dy"], route)
             elif "RB" in position:
