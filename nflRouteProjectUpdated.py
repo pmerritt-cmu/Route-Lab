@@ -236,6 +236,7 @@ class Player:
         if self.cx <= 24 or self.cx>=app.width-24:
             return True
         else: return False
+
     def clickInPlayer(self, mouseX, mouseY):
         if distance(self.cx, self.cy, mouseX, mouseY) <= 10:
             return True
@@ -573,17 +574,23 @@ class exportImportButton(Button):
 #Initialize Offense
 def loadOffensiveFormations(app, firstTime = False):
     dx = dy = 0
-    app.singleBack = {'WR1' : WideReceiver(app, app.width/10, app.lineOfScrimmage+10, dx, dy, app.route),
-                  'WR2': WideReceiver(app, app.width/5.5, app.lineOfScrimmage+30, dx, dy, app.route),
-                  'LT': Lineman(app.width/2-40, app.lineOfScrimmage+15, dx, dy),
-                  'LG': Lineman(app.width/2 - 20, app.lineOfScrimmage+10, dx, dy),
-                  'C': Lineman(app.width/2, app.lineOfScrimmage+10, dx, dy),
-                  'RG': Lineman(app.width/2+20, app.lineOfScrimmage+10, dx, dy),
-                  'RT': Lineman(app.width/2+40, app.lineOfScrimmage+10, dx, dy),
-                  'TE': TightEnd(app, app.width/2 +60, app.lineOfScrimmage+20, dx, dy, app.route),
-                  'WR3': WideReceiver(app, app.width*425/500, app.lineOfScrimmage+10, dx, dy, app.route),
-                  'QB': Quarterback(app.width/2, app.lineOfScrimmage+30, dx, dy),
-                  'RB': RunningBack(app, app.width/2, app.lineOfScrimmage+60, dx, dy, app.route),
+    app.singleBack = {'WR1' : WideReceiver(app, 310, app.lineOfScrimmage+13, 
+                                dx, dy, app.route),
+                  'WR2': WideReceiver(app, 370, app.lineOfScrimmage+33, 
+                                dx, dy, app.route),
+                  'LT': Lineman(450, app.lineOfScrimmage+18, dx, dy),
+                  'LG': Lineman(475, app.lineOfScrimmage+13, dx, dy),
+                  'C': Lineman(app.width//2, app.lineOfScrimmage+13, dx, dy),
+                  'RG': Lineman(525, app.lineOfScrimmage+13, dx, dy),
+                  'RT': Lineman(550, app.lineOfScrimmage+13, dx, dy),
+                  'TE': TightEnd(app, 575, app.lineOfScrimmage+28, 
+                                dx, dy, app.route),
+                  'WR3': WideReceiver(app, 660, app.lineOfScrimmage+13, 
+                                dx, dy, app.route),
+                  'QB': Quarterback(app.width//2, app.lineOfScrimmage+40, 
+                                dx, dy),
+                  'RB': RunningBack(app, app.width//2, app.lineOfScrimmage+70, 
+                                dx, dy, app.rbRouteList[2]),
                  }
     app.shotgun = {'WR1' : WideReceiver(app, 310, app.lineOfScrimmage+13, 
                                 dx, dy, app.route),
@@ -973,9 +980,11 @@ def drawOffense(app):
     if app.ball.cy <= 10*app.yardStep:
         offset = 10*app.yardStep - app.ball.cy
     for position in app.oFormation:
+        print(position)
+        print(app.selectedPlayer)
         player = app.oFormation[position]
         color = customComplimentRed
-        if app.selectedPlayer == player and not app.playIsActive:
+        if app.selectedPlayer == position and app.isOffensiveMenu:
             color = deepRed
         cy = player.cy + offset
         if cy<0 or cy > app.height:
@@ -988,9 +997,6 @@ def drawOffense(app):
             #player.drawVelocity(app)
             if not app.playIsActive:
                 player.drawRoute(app)
-            
-            # ballX, ballY = getBallPlacement(player, app)
-            # drawCircle(ballX, ballY, 5, fill='brown')
 
 def drawFieldOld(app):
     customGreen = rgb(27, 150, 85)
@@ -1476,51 +1482,34 @@ def onMouseMove(app, mx, my):
             app.exportButton.checkBold(mx, my)
 
 def onMousePress(app, mx, my):
-    # select/deselect player and set initial route point
-    if app.isField:
-        if (app.exportButton.text == "Export Play" and 
-            app.exportButton.isClicked(mx, my)):
-            #exportData(app)
-            pass
-        for button in app.fieldButtons:
-            if button.isClicked(mx, my):
-                if button.text == 'Reset':
-                    app.isPlayActive = False
-                    resetApp(app)
-                    return
-                else:
-                    app.importButton.text = "Import Play"
-                    app.isPlayActive = False
-                    resetApp(app)
-                    app.isField = False
-                    app.isOffensiveMenu = True
-                    return
-    if not app.playIsActive and app.isField:
-        for position in app.oFormation:
-            if isinstance(app.oFormation[position], SkillPlayer):
-                player = app.oFormation[position]
-                if player.clickInPlayer(mx,my):
-                    if app.selectedPlayer == player:
-                        app.selectedPlayer = None
-                    else:
-                        app.selectedPlayer = player
-                        return
-        if app.selectedPlayer != None:
-            startX = app.selectedPlayer.startX
-            startY = app.selectedPlayer.startY
-            app.selectedPlayer.route = [(startX, startY),(mx, my)]
-    if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
-        and app.playResult == '' and app.isField):
-        app.ballVelocity = 1
-        app.throwing = True
-        app.mouseX = mx
-        app.mouseY = my
     if app.isMainMenu:
         if ((app.width//2)-250<=mx<=(app.width//2)+250 and 
             (app.height//2+45)-75<=my<=(app.height//2+45)+75):
             app.isMainMenuLabelHovering = False
             app.isMainMenu = False
             app.isOffensiveMenu = True
+    elif app.isField:
+        checkFieldButtons(app, mx, my)
+    # if not app.playIsActive and app.isField:
+    #     for position in app.oFormation:
+    #         if isinstance(app.oFormation[position], SkillPlayer):
+    #             player = app.oFormation[position]
+    #             if player.clickInPlayer(mx,my):
+    #                 if app.selectedPlayer == player:
+    #                     app.selectedPlayer = None
+    #                 else:
+    #                     app.selectedPlayer = player
+    #                     return
+    #     if app.selectedPlayer != None:
+    #         startX = app.selectedPlayer.startX
+    #         startY = app.selectedPlayer.startY
+    #         app.selectedPlayer.route = [(startX, startY),(mx, my)]
+    if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
+        and app.playResult == '' and app.isField):
+        app.ballVelocity = 1
+        app.throwing = True
+        app.mouseX = mx
+        app.mouseY = my
     elif app.isOffensiveMenu:
         if app.importButton.isClicked(mx, my):
             #importData(app)
@@ -1571,18 +1560,41 @@ def onMousePress(app, mx, my):
             app.selectedPlayer = None
             app.dFormation = initializeCoverOne(app)
             app.isPlayActive = False
-    
+
+def checkFieldButtons(app, mx, my):
+    if (app.exportButton.text == "Export Play" and 
+            app.exportButton.isClicked(mx, my)):
+        #exportData(app)
+        pass
+    for button in app.fieldButtons:
+        if button.isClicked(mx, my):
+            if button.text == 'Reset':
+                app.isPlayActive = False
+                resetApp(app)
+                return
+            else:
+                app.importButton.text = "Import Play"
+                app.isPlayActive = False
+                resetApp(app)
+                app.isField = False
+                app.isOffensiveMenu = True
+                return
+
 def onMouseDrag(app, mouseX, mouseY):
-    if not app.playIsActive and app.selectedPlayer != None:
+    if app.isOffensiveMenu and app.selectedPlayer != None:
         # drag to create route
-        app.selectedPlayer.route += [(mouseX, mouseY)]
-        if app.selectedPlayer.clickInPlayer(mouseX,mouseY):
-            startX = app.selectedPlayer.startX
-            startY = app.selectedPlayer.startY
-            app.selectedPlayer.route = [(startX, startY),(mouseX, mouseY)]
-    if app.throwing:
+        print(app.selectedPlayer)
+        print(app.oFormation[app.selectedPlayer])
+        player = app.oFormation[app.selectedPlayer]
+        player.route += [(mouseX, mouseY)]
+        if player.clickInPlayer(mouseX,mouseY):
+            startX = player.startX
+            startY = player.startY
+            player.route = [(startX, startY),(mouseX, mouseY)]
+    if app.isField and app.throwing:
         app.mouseX = mouseX
         app.mouseY = mouseY
+    
 def onMouseRelease(app, mouseX, mouseY):
     if app.throwing:
         app.throwing = False
