@@ -5,7 +5,9 @@ import copy
 import json
 '''
 To do:
-    Change how routes are stored in buttons
+    Fix Base Routes
+    Fix ArrowEnd drawing
+    Update User Directions
     Change how player data imported/exported
 '''
 def onKeyPress(app, key):
@@ -73,6 +75,21 @@ def onAppStart(app):
     app.isWRMenu = True
 
 def resetApp(app):
+    if app.oFormation==app.singleBack:
+        formation = app.singleBackOriginalLocations
+    elif app.oFormation==app.shotgun:
+        formation = app.shotgunOriginalLocations
+    elif app.oFormation==app.spread:
+        formation = app.spreadOriginalLocations
+    else:
+        formation = app.bunchOriginalLocations
+    for livePlayer in app.oFormation:
+        for basePlayer in formation:
+            if livePlayer==basePlayer:
+                app.oFormation[livePlayer].cx = formation[basePlayer].cx
+                app.oFormation[livePlayer].cy = formation[basePlayer].cy
+                app.oFormation[livePlayer].dx = 0
+                app.oFormation[livePlayer].dy = 0
     app.playIsActive = False
     app.selectedPlayer = None
     app.isField = True
@@ -87,9 +104,10 @@ def resetApp(app):
     app.throwing = False
     app.playResult = ''
     app.ballCarrier = None
-    loadOffensiveRoutes(app)
-    loadOffensiveFormations(app)
-    loadOffensivePlayerRoutes(app)
+    # loadOffensiveRoutes(app)
+    # loadOffensiveFormations(app)
+    # loadOffensivePlayerRoutes(app)
+    app.ball = Ball(app.oFormation['C'].cx,app.oFormation['C'].cy,app.oFormation['C'])
     loadDefensiveFormations(app)
 class Ball:
     def __init__(self, cx, cy, carrier, dx=0, dy=0, targetX=None, targetY=None):
@@ -392,12 +410,21 @@ class SkillPlayer(Player):
             newRoute[i] = (endX, endY)
         return newRoute
     def drawRoute(self, app):
-        for i in range(1, len(self.route)):
+        i=1
+        print("drawingRoute")
+        while i < len(self.route)-1:
             endX, endY = self.route[i]
             startX, startY = self.route[i-1]
     
             drawLine(startX, startY, endX, endY,
-                     fill='red', lineWidth=2)
+                     fill='black', lineWidth=2)
+            i+=1
+        arrowX, arrowY = self.route[-1]
+        prevX, prevY = self.route[-2]
+        print(self, arrowX, arrowY, prevX, prevY)
+        drawLine(prevX, prevY, arrowX, arrowY, 
+                fill='black', lineWidth=2, arrowEnd=True)
+
     def drawVelocity(self, app):
         drawLine(self.cx, self.cy,
                  self.cx + self.dx*5,
@@ -647,9 +674,14 @@ def loadOffensiveFormations(app, firstTime = False):
                                 dx, dy, app.rbRouteList[2]),
                  }
     if firstTime:
-        app.selectedFormation = app.shotgun
-        
-    app.oFormation = copy.deepcopy(app.selectedFormation)
+        app.selectedFormation = app.singleBack
+
+    app.singleBackOriginalLocations = copy.deepcopy(app.singleBack)
+    app.shotgunOriginalLocations = copy.deepcopy(app.shotgun)
+    app.spreadOriginalLocations = copy.deepcopy(app.spread)
+    app.bunchOriginalLocations = copy.deepcopy(app.bunch)
+    app.oFormation = app.selectedFormation
+
     app.ball = Ball(app.oFormation['C'].cx,app.oFormation['C'].cy,app.oFormation['C'])
                         #target x and target y are self location
 
@@ -791,7 +823,7 @@ def initializeCoverOne(app):
     coverOne |= toUnionCoverOne
     return coverOne
 def loadZones(app):
-    fieldLeft = 30
+    fieldLeft = 30 #change this
     fieldRight = app.width - 30
     fieldWidth = (app.width - 60) #in pixels
     zones = dict()       #(left, right, top, bottom, cx, cy) in pixels
@@ -980,8 +1012,6 @@ def drawOffense(app):
     if app.ball.cy <= 10*app.yardStep:
         offset = 10*app.yardStep - app.ball.cy
     for position in app.oFormation:
-        print(position)
-        print(app.selectedPlayer)
         player = app.oFormation[position]
         color = customComplimentRed
         if app.selectedPlayer == position and app.isOffensiveMenu:
@@ -1490,20 +1520,6 @@ def onMousePress(app, mx, my):
             app.isOffensiveMenu = True
     elif app.isField:
         checkFieldButtons(app, mx, my)
-    # if not app.playIsActive and app.isField:
-    #     for position in app.oFormation:
-    #         if isinstance(app.oFormation[position], SkillPlayer):
-    #             player = app.oFormation[position]
-    #             if player.clickInPlayer(mx,my):
-    #                 if app.selectedPlayer == player:
-    #                     app.selectedPlayer = None
-    #                 else:
-    #                     app.selectedPlayer = player
-    #                     return
-    #     if app.selectedPlayer != None:
-    #         startX = app.selectedPlayer.startX
-    #         startY = app.selectedPlayer.startY
-    #         app.selectedPlayer.route = [(startX, startY),(mx, my)]
     if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
         and app.playResult == '' and app.isField):
         app.ballVelocity = 1
@@ -1525,18 +1541,18 @@ def onMousePress(app, mx, my):
                     if app.selectedPlayer==None: return
                     player = app.oFormation[app.selectedPlayer]
                     if player.cx<=app.width//2:
-                        player.route = button.leftRoute
+                        player.route = player.translateRoute(app, button.leftRoute)
                     else:
-                        player.route = button.rightRoute
+                        player.route = player.translateRoute(app, button.rightRoute)
         else:
             for button in app.offensiveRBRouteButtons:
                 if button.isClicked(mx, my):
                     if app.selectedPlayer==None: return
                     player = app.oFormation[app.selectedPlayer]
                     if player.cx<=app.width//2:
-                        player.route = button.leftRoute
+                        player.route = player.translateRoute(app, button.leftRoute)
                     else:
-                        player.route = button.rightRoute
+                        player.route = player.translateRoute(app, button.rightRoute)
         for position in app.oFormation:
             if 'WR' in position or "TE" in position:
                 player = app.oFormation[position]
@@ -1582,9 +1598,6 @@ def checkFieldButtons(app, mx, my):
 
 def onMouseDrag(app, mouseX, mouseY):
     if app.isOffensiveMenu and app.selectedPlayer != None:
-        # drag to create route
-        print(app.selectedPlayer)
-        print(app.oFormation[app.selectedPlayer])
         player = app.oFormation[app.selectedPlayer]
         player.route += [(mouseX, mouseY)]
         if player.clickInPlayer(mouseX,mouseY):
