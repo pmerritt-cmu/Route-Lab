@@ -5,8 +5,8 @@ import copy
 import json
 '''
 To do:
-    Fix Base Routes
-    Fix ArrowEnd drawing
+    Fix boundaries
+    Make sure routes save
     Update User Directions
     Change how player data imported/exported
 '''
@@ -109,6 +109,7 @@ def resetApp(app):
     # loadOffensivePlayerRoutes(app)
     app.ball = Ball(app.oFormation['C'].cx,app.oFormation['C'].cy,app.oFormation['C'])
     loadDefensiveFormations(app)
+
 class Ball:
     def __init__(self, cx, cy, carrier, dx=0, dy=0, targetX=None, targetY=None):
         self.carrier = carrier
@@ -120,6 +121,7 @@ class Ball:
         self.targetY = targetY
         self.beingSnapped = False
         self.height = 0
+
     def drawBall(self, app):
         offset = 0
         if self.cy <= 10*app.yardStep:
@@ -251,7 +253,9 @@ class Player:
         return hash(str(self))
        
     def isOutOfBounds(self,app):
-        if self.cx <= 24 or self.cx>=app.width-24:
+        boundaryOffset = 20
+        if (self.cx <= app.sideLineOffset+boundaryOffset or 
+            self.cx>=app.width-boundaryOffset):
             return True
         else: return False
 
@@ -262,6 +266,11 @@ class Player:
             return False
     
     def goToPoint(self, app):
+        boundaryOffset = 20
+        if (self.targetX <= boundaryOffset+app.sideLineOffset):
+            self.targetX = boundaryOffset+app.sideLineOffset
+        elif (self.targetX >= app.width-boundaryOffset-app.sideLineOffset): 
+            self.targetX = app.width-boundaryOffset-app.sideLineOffset
         dx = self.targetX - self.cx
         dy = self.targetY - self.cy
 
@@ -298,6 +307,7 @@ class Player:
         if speed > app.maxSpeed:
             self.dx = (self.dx / speed) * app.maxSpeed
             self.dy = (self.dy / speed) * app.maxSpeed
+
     def trackBall(self, app):
         # check if ball in sight
         self.targetX = app.ball.targetX
@@ -316,10 +326,11 @@ class Player:
     def movePlayer(self, app):
         self.cx+=self.dx
         self.cy+=self.dy
-        if self.cx <= 24:
-            self.cx = 24
-        elif self.cx >= app.width-24:
-            self.cx = app.width-24
+        boundaryOffset = 20
+        if self.cx <= boundaryOffset+app.sideLineOffset:
+            self.cx = boundaryOffset+app.sideLineOffset
+        elif self.cx >= app.width-boundaryOffset-app.sideLineOffset:
+            self.cx = app.width-boundaryOffset-app.sideLineOffset
     def stopPlayer(self, app, target):
         #Assumes target is a WideReceiver, TightEnd, or RunningBack
         #Find self
@@ -398,7 +409,9 @@ class SkillPlayer(Player):
                 self.goToPoint(app)
                 break
         self.movePlayer(app)
+
     def translateRoute(self, app, route):
+        boundaryOffset = 20
         newRoute = [(x*app.yardStep,
                       y*app.yardStep) for (x,y) in route]
         newRoute = [(self.startX, self.startY)] + newRoute
@@ -407,11 +420,16 @@ class SkillPlayer(Player):
             startX, startY = newRoute[i-1]
             endX += startX
             endY += startY
+            if endX <= boundaryOffset+app.sideLineOffset:
+                endX = boundaryOffset+app.sideLineOffset
+            elif endX>=app.width-boundaryOffset-app.sideLineOffset:
+                endX = app.width-boundaryOffset-app.sideLineOffset
             newRoute[i] = (endX, endY)
         return newRoute
+
     def drawRoute(self, app):
+        boundaryOffset = 20
         i=1
-        print("drawingRoute")
         while i < len(self.route)-1:
             endX, endY = self.route[i]
             startX, startY = self.route[i-1]
@@ -420,8 +438,11 @@ class SkillPlayer(Player):
                      fill='black', lineWidth=2)
             i+=1
         arrowX, arrowY = self.route[-1]
+        if arrowX <= boundaryOffset+app.sideLineOffset:
+            arrowX = boundaryOffset+app.sideLineOffset
+        elif arrowX>=app.width-boundaryOffset-app.sideLineOffset:
+            arrowX = app.width-boundaryOffset-app.sideLineOffset
         prevX, prevY = self.route[-2]
-        print(self, arrowX, arrowY, prevX, prevY)
         drawLine(prevX, prevY, arrowX, arrowY, 
                 fill='black', lineWidth=2, arrowEnd=True)
 
@@ -689,10 +710,10 @@ def loadOffensiveRoutes(app):
     #Routes are in (yards, dx, dy) format where yards are steps.
     #'Left/Right' is the starting location relative to center of field
     #RB routes start with 'rb'
-    crossingLeft = [(10, -20), (20, -10)]
-    crossingRight = [(-10, -20), (-20, -10)]
+    crossingLeft = [(10,-10), (10, -10)]
+    crossingRight = [(-10,-10), (-10, -10)]
 
-    slantLeft = [(0, -5), (15, -15)]
+    slantLeft = [(0, -5), (15,-15)]
     slantRight = [(0, -5), (-15, -15)]
 
     quickOutLeft = [(0, -3), (-8, 0)]
@@ -700,29 +721,32 @@ def loadOffensiveRoutes(app):
 
     shallowDigLeft = [(0, -5), (15, 0)]
     shallowDigRight = [(0, -5), (-15, 0)]
+
     deepDigLeft = [(0, -10), (15, 0)]
-    deepDigRight = [(0, -10), (-15, 0)]
+    deepDigRight = [(0, -10), (-15,  0)]
 
     shallowOutLeft = [(0, -5), (-8, 0)]
     shallowOutRight = [(0, -5), (8, 0)]
+
     deepOutLeft = [(0, -10), (-8, 0)]
     deepOutRight = [(0, -10), (8, 0)]
 
     shallowHitchLeft = [(0, -8), (2, 2)]
-    shallowHitchRight = [(0, -8), (2, -2)]
-    deepHitchLeft = [(0, -12), (2, 2)]
-    deepHitchRight = [(0, -12), (2, -2)]
+    shallowHitchRight = [(0,-8), (-2, 2)]
 
-    postLeft = [(0, -12), (5, -10)]
-    postRight = [(0, -12), (15, -5 - 10)]
+    deepHitchLeft = [( 0, -12), (2,3)]
+    deepHitchRight = [( 0, -12), (-2,3)]
+
+    postLeft = [( 0, -12), (5, -10)]
+    postRight = [(0, -12), (-5, -10)]
     cornerLeft = [(0, -12), (-5, -10)]
     cornerRight = [(0, -12), (5, -10)]
 
-    go = [(0, -20), (0, -20)]
+    go = [(0, -11), (0, -11)]
 
-    rbOutLeft = [(-10, -5), (0, -20)]
-    rbOutRight = [(10, -5), (0, -20)]
-    rbZoneSit = [(0, -10), (0, 0)]
+    rbOutLeft = [( 8, -4), ( 5, -2.5)]
+    rbOutRight = [(-8, -4), (-5, -2.5)]
+    rbZoneSit = [(0, -10), (0, 1)]
 
    
     app.wrRouteList= [crossingLeft, crossingRight, slantLeft, slantRight,
@@ -1311,16 +1335,17 @@ def drawField(app, scrimmageLine=True):
                         app.width-40-app.sideLineOffset, i, fill='white')
             drawLine(3*app.width//7, i, 3*app.width//7+10, i, fill='white')
             drawLine(4*app.width//7, i, 4*app.width//7+10, i, fill='white')
+    boundaryOffset = 20
     if scrimmageLine:
-        drawLine(20+app.sideLineOffset, 
+        drawLine(boundaryOffset+app.sideLineOffset, 
                     app.height-(app.yardStep*14), 
-                    app.width-20-app.sideLineOffset,
+                    app.width-boundaryOffset-app.sideLineOffset,
                     app.height-(app.yardStep*14), fill='blue')
 
-    drawLine(20+app.sideLineOffset, 0, 20+app.sideLineOffset, app.height,
+    drawLine(app.sideLineOffset+boundaryOffset, 0, app.sideLineOffset+boundaryOffset, app.height,
                 fill='white', lineWidth=4)
-    drawLine(app.width-20-app.sideLineOffset, 0, 
-                app.width-20-app.sideLineOffset, app.height,
+    drawLine(app.width-boundaryOffset-app.sideLineOffset, 0, 
+                app.width-boundaryOffset-app.sideLineOffset, app.height,
                 fill='white', lineWidth=4)
     
 #### Moving Logic ####
@@ -1374,7 +1399,6 @@ def moveOffense(app):
 
             #print(player, cx, cy, dx, dy, player.route)
 def moveDefense(app):
-
     for position in app.dFormation:
         player = app.dFormation[position]
         if isinstance(player, CoverPlayer):
@@ -1520,12 +1544,12 @@ def onMousePress(app, mx, my):
             app.isOffensiveMenu = True
     elif app.isField:
         checkFieldButtons(app, mx, my)
-    if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
-        and app.playResult == '' and app.isField):
-        app.ballVelocity = 1
-        app.throwing = True
-        app.mouseX = mx
-        app.mouseY = my
+        if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
+            and app.playResult == ''):
+            app.ballVelocity = 1
+            app.throwing = True
+            app.mouseX = mx
+            app.mouseY = my
     elif app.isOffensiveMenu:
         if app.importButton.isClicked(mx, my):
             #importData(app)
@@ -1535,6 +1559,7 @@ def onMousePress(app, mx, my):
                 app.selectedFormation = button.formation
                 app.oFormation = copy.deepcopy(app.selectedFormation)
                 app.selectedPlayer = None
+                return
         if app.isWRMenu:
             for button in app.offensiveWRRouteButtons:
                 if button.isClicked(mx, my):
@@ -1544,6 +1569,7 @@ def onMousePress(app, mx, my):
                         player.route = player.translateRoute(app, button.leftRoute)
                     else:
                         player.route = player.translateRoute(app, button.rightRoute)
+                    return
         else:
             for button in app.offensiveRBRouteButtons:
                 if button.isClicked(mx, my):
@@ -1553,6 +1579,7 @@ def onMousePress(app, mx, my):
                         player.route = player.translateRoute(app, button.leftRoute)
                     else:
                         player.route = player.translateRoute(app, button.rightRoute)
+                    return
         for position in app.oFormation:
             if 'WR' in position or "TE" in position:
                 player = app.oFormation[position]
@@ -1597,7 +1624,10 @@ def checkFieldButtons(app, mx, my):
                 return
 
 def onMouseDrag(app, mouseX, mouseY):
-    if app.isOffensiveMenu and app.selectedPlayer != None:
+    boundaryOffset = 20
+    if (app.isOffensiveMenu and app.selectedPlayer != None and
+       (mouseX >= app.sideLineOffset+boundaryOffset 
+       and mouseX <= app.width - app.sideLineOffset-boundaryOffset)):
         player = app.oFormation[app.selectedPlayer]
         player.route += [(mouseX, mouseY)]
         if player.clickInPlayer(mouseX,mouseY):
