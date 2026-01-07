@@ -674,10 +674,26 @@ class RouteButton(Button):
         self.leftRoute = routes[0]
         self.rightRoute = routes[1]
 
+class InstructionButton(Button):
+    customGreen2 = rgb(8, 110, 40)
+    def __init__(self, cx, cy, w, h, text):
+        super().__init__(cx, cy, w, h, text)
+        self.isInstructions = False
+
+    def draw(self):
+        drawRect(self.cx, self.cy, self.w+7, self.h+4.4,
+                fill='black', align='center')
+        drawRect(self.cx, self.cy, self.w, self.h,
+                fill=InstructionButton.customGreen2, align='center')
+        drawLabel(self.text, self.cx, self.cy, size=18, 
+                    bold = self.bolded, align='center')
+
+
 class StartButton(Button):
     customComplimentRed = rgb(215, 80, 75)
     def __init__(self, cx, cy, w, h, text):
         super().__init__(cx, cy, w, h, text)
+
 
     def draw(self):
         drawRect(self.cx, self.cy, self.w+7, self.h+4.4,
@@ -688,9 +704,19 @@ class StartButton(Button):
                     bold = self.bolded, align='center')
 
 class exportImportButton(Button):
+    customGreen3 = rgb(8, 90, 35)
     def __init__(self, cx, cy, w, h, text, data):
         super().__init__(cx, cy, w, h, text)
         self.data = data
+
+    def draw(self):
+        drawRect(self.cx, self.cy, self.w+7, self.h+4.4,
+                fill='black', align='center')
+        drawRect(self.cx, self.cy, self.w, self.h,
+                fill=exportImportButton.customGreen3, align='center')
+        drawLabel(self.text, self.cx, self.cy, size=18, 
+                    bold = self.bolded, align='center')
+
 #Initialize Offense
 def loadOffensiveFormations(app, firstTime = False):
     dx = dy = 0
@@ -766,11 +792,29 @@ def loadOffensiveFormations(app, firstTime = False):
                   'RB': RunningBack(app, app.width//2 + 35, app.lineOfScrimmage+70,
                                 dx, dy, app.rbRouteList[2]),
                  }
+    app.custom = {'WR1' : WideReceiver(app, 290, app.lineOfScrimmage+40, 
+                                dx, dy, app.route),
+                  'WR2': WideReceiver(app, 340, app.lineOfScrimmage+40, 
+                                dx, dy, app.route),
+                  'LT': Lineman(450, app.lineOfScrimmage+18, dx, dy),
+                  'LG': Lineman(475, app.lineOfScrimmage+13, dx, dy),
+                  'C': Lineman(app.width//2, app.lineOfScrimmage+13, dx, dy),
+                  'RG': Lineman(525, app.lineOfScrimmage+13, dx, dy),
+                  'RT': Lineman(550, app.lineOfScrimmage+18, dx, dy),
+                  'WR3': WideReceiver(app, 660, app.lineOfScrimmage+40, 
+                                dx, dy, app.route),
+                  'WR4': WideReceiver(app, 710, app.lineOfScrimmage+40, 
+                                dx, dy, app.route),
+                  'QB': Quarterback(app.width//2, app.lineOfScrimmage+70, 
+                                dx, dy),
+                  'RB': RunningBack(app, app.width//2 + 35, app.lineOfScrimmage+70,
+                                dx, dy, app.rbRouteList[2]),
+                 }
 
-    app.singleBackOriginalLocations = copy.deepcopy(app.singleBack)
-    app.shotgunOriginalLocations = copy.deepcopy(app.shotgun)
-    app.spreadOriginalLocations = copy.deepcopy(app.spread)
-    app.bunchOriginalLocations = copy.deepcopy(app.bunch)
+    # app.singleBackOriginalLocations = copy.deepcopy(app.singleBack)
+    # app.shotgunOriginalLocations = copy.deepcopy(app.shotgun)
+    # app.spreadOriginalLocations = copy.deepcopy(app.spread)
+    # app.bunchOriginalLocations = copy.deepcopy(app.bunch)
     app.oFormation = app.singleBack
 
     app.ball = Ball(app.oFormation['C'].cx,app.oFormation['C'].cy,app.oFormation['C'])
@@ -1015,18 +1059,23 @@ def loadOffensiveMenuButtons(app):
     app.offensiveFormationButtons = []
     app.offensiveWRRouteButtons = []
     app.offensiveRBRouteButtons = []
-    singleBack = FormationButton(95, 60, 
+    singleBack = FormationButton(95, 80, 
                     130, 65, "Single Back", app.singleBack)
-    shotgunButton = FormationButton(95, 160, 
+    shotgunButton = FormationButton(95, 170, 
                     130, 65, "Shotgun", app.shotgun)
     spreadButton = FormationButton(95, 260, 
                     130, 65, "Spread", app.spread)
-    bunchButton = FormationButton(95, 360, 
+    bunchButton = FormationButton(95, 350, 
                     130, 65, "Bunch", app.bunch)
+    customButton = FormationButton(95, 440, 
+                    130, 65, "Custom", app.custom)
     app.offensiveFormationButtons.append(singleBack)
     app.offensiveFormationButtons.append(shotgunButton)
     app.offensiveFormationButtons.append(spreadButton)
     app.offensiveFormationButtons.append(bunchButton)
+    app.offensiveFormationButtons.append(customButton)
+
+    app.instructionsButton = InstructionButton(105, 538, 175, 50, "Toggle Instructions")
 
     #splices app.WR routes to get left and right route
     crossingButton = RouteButton(app.width-95, 50, 
@@ -1077,7 +1126,7 @@ def loadOffensiveMenuButtons(app):
     app.offensiveRBRouteButtons.append(rbOutButton)
     app.offensiveRBRouteButtons.append(rbZoneSitButton)
     app.importButton = exportImportButton(app.sideLineOffset//2, 
-                    app.height-45, 150, 50, "Import Play", dict())
+                    app.height-120, 150, 50, "Import Play", dict())
     app.exportButton = exportImportButton(app.sideLineOffset//2, 
                 app.height-45, 150, 50, "Export Play", dict())
 
@@ -1122,44 +1171,6 @@ def drawOffense(app):
             if not app.playIsActive:
                 player.drawRoute(app)
 
-def drawFieldOld(app):
-    customGreen = rgb(27, 150, 85)
-    tenCount=1
-    fiveCount=0
-    offset = 0
-    if app.ball.cy <= 10*app.yardStep:
-        offset = 10*app.yardStep - app.ball.cy # also subtract ball carrier dy from everyones cy 
-    drawRect(0, 0, app.width, app.height, fill=customGreen)
-    #Draw Yard Lines
-    goalLine = app.lineOfScrimmage-app.yardStep*85
-    for i in range(app.height, goalLine, -app.yardStep):
-        #Make it long yard line every 5 yards
-        i += offset
-        fiveCount+=1
-        if i < 0 or i > app.height:
-            if fiveCount%10==0:
-                tenCount+=1
-            continue
-        if fiveCount%5==0:
-            drawLine(30, i, app.width-30, i, fill='white')
-            if fiveCount%10==0:
-                drawLabel(f'{tenCount} 0', 60, i,
-                        size=20, fill='white', rotateAngle=90)
-                drawLabel(f'{tenCount} 0', app.width-60, i,
-                        size=20, fill='white', rotateAngle=270)
-                tenCount+=1
-        else:
-            drawLine(30, i, 40, i, fill='white')
-            drawLine(app.width-30, i, app.width-40, i, fill='white')
-            drawLine(2*app.width//5, i, 2*app.width//5+10, i, fill='white')
-            drawLine(3*app.width//5, i, 3*app.width//5+10, i, fill='white')
-    # what is this?
-    drawLine(20, app.height-(app.yardStep*14) + offset, app.width-20,
-            app.height-(app.yardStep*14)+offset, fill='blue')
-    drawLine(20, 0, 20, app.height,
-            fill='white', lineWidth=4)
-    drawLine(app.width-20, 0, app.width-20, app.height,
-            fill='white', lineWidth=4)
 
 def drawSideline(app):
     customComplimentRed = rgb(215, 80, 75)
@@ -1339,32 +1350,9 @@ def drawControlsMenu(app):
 def drawOffensiveMenu(app):
     drawField(app, scrimmageLine=False)
     drawLabel("Select Formation", app.sideLineOffset//2, 
-                13, size=20, bold=True)
+                17, size=20, bold=True)
     drawLabel("Select Route", app.width - app.sideLineOffset//2, 
                 17, size=20, bold=True)
-
-    drawLabel("Click a formation button ", app.sideLineOffset//2, 
-                app.height//2+50, size=15, bold=True)
-    drawLabel("to select formation", app.sideLineOffset//2, 
-                app.height//2+70, size=15, bold=True)
-    
-    drawLabel("Click a player then a route", app.sideLineOffset//2, 
-                app.height//2+110, size=15, bold=True)
-    drawLabel("to set player route", app.sideLineOffset//2, 
-                app.height//2+130, size=15, bold=True)
-    
-    drawLabel("Import plays using", app.sideLineOffset//2, 
-                app.height//2+170, size=15, bold=True)
-    drawLabel("button below, and export", app.sideLineOffset//2, 
-                app.height//2+190, size=15, bold=True)
-    drawLabel("plays on game screen", app.sideLineOffset//2, 
-                app.height//2+210, size=15, bold=True)
-    drawLabel("Note: only import using", app.sideLineOffset//2, 
-                app.height//2+245, size=12, bold=True)
-    drawLabel("exported file structure", app.sideLineOffset//2, 
-                app.height//2+258, size=12, bold=True)
-    drawLabel("to avoid failed imports", app.sideLineOffset//2, 
-                app.height//2+271, size=12, bold=True)
 
     for button in app.offensiveFormationButtons:
         button.draw()
@@ -1376,9 +1364,43 @@ def drawOffensiveMenu(app):
             button.draw()
     app.startGameButton.draw()
     app.importButton.draw()
+    app.exportButton.draw()
+    app.instructionsButton.draw()
     #drawRoutes(app)
     drawOffense(app)
+    if app.instructionsButton.isInstructions:
+        drawInstructionsMenu(app)
 
+def drawInstructionsMenu(app):
+    offset = 175
+    drawRect(app.width//2, app.height//2-offset, 500, 350, 
+                fill=rgb(60, 100, 60), border='black', 
+                opacity = 88,align='center')
+    drawLabel("Instructions:", app.width//2, app.height//2 - offset - 130, 
+                size=45, bold=True)
+
+    drawLabel("- Click a formation button to select formation", 
+                app.width//2-200, app.height//2 - offset - 70, 
+                size=18, bold=True, align='left')
+
+    drawLabel("- Click a player then a route to select route", 
+                app.width//2-200, app.height//2 - offset - 40, 
+                size=18, bold=True, align='left')
+    
+    drawLabel("- Use arrow keys to move selected players", 
+                app.width//2-200, app.height//2 - offset - 10, 
+                size=18, bold=True, align='left')
+
+    drawLabel("- Click a player and drag to create custom route", 
+                app.width//2-200, app.height//2 - offset + 20, 
+                size=18, bold=True, align='left')
+
+    drawLabel("- Only import plays with exported file structure", 
+                app.width//2-200, app.height//2 - offset + 50, 
+                size=18, bold=True, align='left')
+    drawLabel("to avoid failed imports", 
+                app.width//2-150, app.height//2 - offset + 75, 
+                size=18, bold=True, align='left')
 
 def drawField(app, scrimmageLine=True):
     customGreen = rgb(27, 150, 85)
@@ -1590,8 +1612,10 @@ def onMouseMove(app, mx, my):
         else: app.isMainMenuLabelHovering = False
     elif app.isOffensiveMenu:
         app.importButton.checkBold(mx, my)
+        app.exportButton.checkBold(mx, my)
         for button in app.offensiveFormationButtons:
             button.checkBold(mx, my)
+        app.instructionsButton.checkBold(mx, my)
         if app.isWRMenu:
             for button in app.offensiveWRRouteButtons:
                 button.checkBold(mx, my)
@@ -1621,8 +1645,14 @@ def onMousePress(app, mx, my):
             app.mouseX = mx
             app.mouseY = my
     elif app.isOffensiveMenu:
-        if app.importButton.isClicked(mx, my):
+        if app.instructionsButton.isClicked(mx, my):
+            app.instructionsButton.isInstructions = not app.instructionsButton.isInstructions
+            return
+        elif app.importButton.isClicked(mx, my):
             #importData(app)
+            pass
+        elif app.exportButton.isClicked(mx, my):
+            #exportData(app)
             pass
         for button in app.offensiveFormationButtons:
             if button.isClicked(mx, my):
@@ -1687,6 +1717,7 @@ def checkFieldButtons(app, mx, my):
             else:
                 app.importButton.text = "Import Play"
                 app.isPlayActive = False
+                app.instructionsButton.isInstructions = False
                 resetApp(app)
                 app.isField = False
                 app.isOffensiveMenu = True
