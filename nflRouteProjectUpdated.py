@@ -5,8 +5,6 @@ import copy
 import json
 '''
 To do:
-    Fix boundaries
-    Make sure routes save
     Update User Directions
     Change how player data imported/exported
 '''
@@ -22,18 +20,100 @@ def onKeyPress(app, key):
             app.isPlayActive = not app.isPlayActive
 
 def onKeyHold(app, keys):
-    if 'up' in keys and app.ball.carrier != None:
-        carrier = app.ball.carrier
-        carrier.targetY = carrier.cy-10*app.yardStep
-    if 'down' in keys and app.ball.carrier != None:
-        carrier = app.ball.carrier
-        carrier.targetY = carrier.cy+10*app.yardStep
-    if 'right' in keys and app.ball.carrier != None:
-        carrier = app.ball.carrier
-        carrier.targetX = carrier.cx+10*app.yardStep
-    if 'left' in keys and app.ball.carrier != None:
-        carrier = app.ball.carrier
-        carrier.targetX = carrier.cx-10*app.yardStep
+    if app.isField:
+        if 'up' in keys and app.ball.carrier != None:
+            carrier = app.ball.carrier
+            carrier.targetY = carrier.cy-10*app.yardStep
+        if 'down' in keys and app.ball.carrier != None:
+            carrier = app.ball.carrier
+            carrier.targetY = carrier.cy+10*app.yardStep
+        if 'right' in keys and app.ball.carrier != None:
+            carrier = app.ball.carrier
+            carrier.targetX = carrier.cx+10*app.yardStep
+        if 'left' in keys and app.ball.carrier != None:
+            carrier = app.ball.carrier
+            carrier.targetX = carrier.cx-10*app.yardStep
+    elif app.isOffensiveMenu:
+        if app.selectedPlayer == None:
+            return
+        speed = 0.11
+        moveAmount = speed * app.yardStep
+        player = app.oFormation[app.selectedPlayer]
+        if 'up' in keys:
+            player.startY -= moveAmount
+            player.cy = player.startY
+            if checkInBoundaryScrimmageLine(app, player, moveAmount) != None:
+                return
+            newRoute = []
+            for (x,y) in player.route:
+                newRoute.append((x, y - moveAmount))
+            player.route = newRoute
+        if 'down' in keys:
+            player.startY += moveAmount
+            player.cy = player.startY
+            if checkInBoundaryScrimmageLine(app, player, moveAmount) != None:
+                return
+            newRoute = []
+            for (x,y) in player.route:
+                newRoute.append((x, y + moveAmount))
+            player.route = newRoute
+        if 'right' in keys:
+            player.startX += moveAmount
+            player.cx = player.startX
+            if checkInBoundaryLR(app, player, moveAmount) != None:
+                return
+            newRoute = []
+            for (x,y) in player.route:
+                newRoute.append((x + moveAmount, y))
+            player.route = newRoute
+        if 'left' in keys:
+            player.startX -= moveAmount
+            player.cx = player.startX
+            if checkInBoundaryLR(app, player, moveAmount) != None:
+                return
+            newRoute = []
+            for (x,y) in player.route:
+                newRoute.append((x - moveAmount, y))
+            player.route = newRoute
+        makeRouteInBounds(app, player)
+
+def checkInBoundaryLR(app, player, moveAmount):
+    boundaryOffset = 20
+    if player.cx <= boundaryOffset+app.sideLineOffset:
+        player.startX += moveAmount
+        player.cx = player.startX
+        return "Too Far Left"
+    elif player.cx >= app.width-boundaryOffset-app.sideLineOffset:
+        player.startX -= moveAmount
+        player.cx = player.startX
+        print('too far right')
+        return "Too Far Right"
+    return None
+
+def checkInBoundaryScrimmageLine(app, player, moveAmount):
+    scrimmageLineOffset = 13
+    lowerScreenOffset = 15
+    if player.cy <= app.lineOfScrimmage+scrimmageLineOffset:
+        player.startY += moveAmount
+        player.cy = player.startY
+        return "Too Far Up"
+    elif player.cy >= app.height-lowerScreenOffset:
+        player.startY -= moveAmount
+        player.cy = player.startY
+        return "Too Far Down"
+    return None
+
+def makeRouteInBounds(app, player):
+    newRoute = copy.deepcopy(player.route)
+    scrimmageLineOffset = 20
+    for i in range(len(player.route)):
+        x, y = player.route[i]
+        if x <= app.sideLineOffset + scrimmageLineOffset:
+            newRoute[i] = (app.sideLineOffset + scrimmageLineOffset, y)
+        if x >= app.width - app.sideLineOffset - scrimmageLineOffset:
+            newRoute[i] = (app.width - app.sideLineOffset - scrimmageLineOffset, y)
+    player.route = newRoute
+
 def onKeyRelease(app, key):
     if key == 'up' and app.ball.carrier != None:
         app.ball.carrier.targetY = app.ball.carrier.cy
@@ -75,21 +155,15 @@ def onAppStart(app):
     app.isWRMenu = True
 
 def resetApp(app):
-    if app.oFormation==app.singleBack:
-        formation = app.singleBackOriginalLocations
-    elif app.oFormation==app.shotgun:
-        formation = app.shotgunOriginalLocations
-    elif app.oFormation==app.spread:
-        formation = app.spreadOriginalLocations
-    else:
-        formation = app.bunchOriginalLocations
-    for livePlayer in app.oFormation:
-        for basePlayer in formation:
-            if livePlayer==basePlayer:
-                app.oFormation[livePlayer].cx = formation[basePlayer].cx
-                app.oFormation[livePlayer].cy = formation[basePlayer].cy
-                app.oFormation[livePlayer].dx = 0
-                app.oFormation[livePlayer].dy = 0
+    for position in app.oFormation:
+        player = app.oFormation[position]
+        player.cx = player.startX
+        player.cy = player.startY
+        player.dx = 0
+        player.dy = 0
+        if isinstance(player, SkillPlayer):
+            player.targetX = player.startX
+            player.targetY = player.startY
     app.playIsActive = False
     app.selectedPlayer = None
     app.isField = True
@@ -234,6 +308,8 @@ class Zone:
         self.bottom = bottom 
 class Player:
     def __init__(self, cx, cy, dx=0, dy=0, targetX=None, targetY=None):
+        self.startX = cx
+        self.startY = cy
         self.cx = cx
         self.cy = cy
         self.dx = dx
@@ -383,9 +459,6 @@ class Player:
 class SkillPlayer(Player):
     def __init__(self, app,  cx, cy, dx=0, dy=0, route=None):
         super().__init__( cx, cy, dx, dy)
-        
-        self.startX = cx
-        self.startY = cy
         self.targetX = self.cx + route[0][0]*app.yardStep
         self.targetY = self.cy + route[0][1]*app.yardStep
         self.route = self.translateRoute(app,route)
@@ -402,7 +475,6 @@ class SkillPlayer(Player):
                 if i == len(self.route)-1:
                     self.goToPoint(app)
                     break
-                    
             else:  
                 self.targetX = currStep[0]
                 self.targetY = currStep[1]
@@ -694,14 +766,12 @@ def loadOffensiveFormations(app, firstTime = False):
                   'RB': RunningBack(app, app.width//2 + 35, app.lineOfScrimmage+70,
                                 dx, dy, app.rbRouteList[2]),
                  }
-    if firstTime:
-        app.selectedFormation = app.singleBack
 
     app.singleBackOriginalLocations = copy.deepcopy(app.singleBack)
     app.shotgunOriginalLocations = copy.deepcopy(app.shotgun)
     app.spreadOriginalLocations = copy.deepcopy(app.spread)
     app.bunchOriginalLocations = copy.deepcopy(app.bunch)
-    app.oFormation = app.selectedFormation
+    app.oFormation = app.singleBack
 
     app.ball = Ball(app.oFormation['C'].cx,app.oFormation['C'].cy,app.oFormation['C'])
                         #target x and target y are self location
@@ -1556,8 +1626,7 @@ def onMousePress(app, mx, my):
             pass
         for button in app.offensiveFormationButtons:
             if button.isClicked(mx, my):
-                app.selectedFormation = button.formation
-                app.oFormation = copy.deepcopy(app.selectedFormation)
+                app.oFormation = button.formation
                 app.selectedPlayer = None
                 return
         if app.isWRMenu:
