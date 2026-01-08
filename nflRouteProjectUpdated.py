@@ -5,19 +5,29 @@ import copy
 import json
 '''
 To do:
-    Update User Directions
     Change how player data imported/exported
+    Fix edge rushers
+    Maybe make more files for different parts of the code
 '''
 def onKeyPress(app, key):
-    if key == 'p':
+    if not app.isField:
+        return
+    if key == 'space':
         app.isPaused = not app.isPaused
-    elif key == 'space':
-        takeStep(app)
-    elif key == 'r':
-        resetApp(app)
-    elif key=='space':
         if not app.isPlayActive:
             app.isPlayActive = not app.isPlayActive
+            if app.isPlayActive:
+                app.fieldInstructionsButton.isInstructions = False
+    elif key == 's':
+        takeStep(app)
+        if not app.isPlayActive:
+            app.isPlayActive = not app.isPlayActive
+            if app.isPlayActive:
+                app.fieldInstructionsButton.isInstructions = False
+    elif key == 'r':
+        resetApp(app)
+    elif key == 'p':
+        app.isPashRush = not app.isPashRush
 
 def onKeyHold(app, keys):
     if app.isField:
@@ -124,6 +134,7 @@ def onKeyRelease(app, key):
     elif key == 'right' and app.ball.carrier != None:
         app.ball.carrier.targetX = app.ball.carrier.cx
 
+
 def onAppStart(app):
     app.width = 1000
     app.height = 750
@@ -142,6 +153,7 @@ def onAppStart(app):
     app.maxBallVelo = 5
     app.mouseX = 0
     app.mouseY = 0
+    app.isPashRush = True
 
     loadOffensiveRoutes(app)
     loadOffensiveFormations(app, firstTime =True)
@@ -595,8 +607,6 @@ class CoverPlayer(Player):
         dist = distance(self.cx, self.cy, ballCarrier.cx, ballCarrier.cy)
         if dist <= 15:
             app.playResult = 'tackled'
-            
-        
 
 class CornerBack(CoverPlayer):
     def __init__(self,  cx, cy, dx=0, dy=0, man=None, zone=None):
@@ -609,6 +619,10 @@ class PassRusher(Player):
         super().__init__( cx, cy, dx, dy)
         self.rushingQB = False
     def rushQB(self, app):
+        if app.isPashRush == False:
+            self.targetX = self.cx
+            self.targetY = self.cy
+            return
         qb = app.oFormation['QB']
         if self.rushingQB:
             self.targetX = qb.cx
@@ -1034,18 +1048,15 @@ def redrawAll(app):
         drawFieldButtons(app)
         drawOffense(app)
         drawDefense(app)
-        drawLabel("Click mouse", app.sideLineOffset//2-30, 
-                    app.height//2+100, size=22)
-        drawLabel("to throw", app.sideLineOffset//2-30, 
-                    app.height//2+120, size=22)
         app.exportButton.draw()
         app.ball.drawBall(app)
         if app.throwing:
             drawCircle(app.mouseX, app.mouseY, app.ballVelocity*3, fill='yellow')
         # drawLabel('ball height' + str(app.ball.height), 300, 300, size=22, 
         #       fill='black', align='left')
-        if app.isPaused:
-            drawControlsMenu(app)
+        app.fieldInstructionsButton.draw()
+        if app.fieldInstructionsButton.isInstructions and app.isPaused:
+            drawFieldInstructions(app)
     elif app.isMainMenu:
         drawMainMenu(app)
     elif app.isOffensiveMenu:
@@ -1075,7 +1086,8 @@ def loadOffensiveMenuButtons(app):
     app.offensiveFormationButtons.append(bunchButton)
     app.offensiveFormationButtons.append(customButton)
 
-    app.instructionsButton = InstructionButton(105, 538, 175, 50, "Toggle Instructions")
+    app.menuInstructionsButton = InstructionButton(105, 538, 175, 50, "Toggle Instructions")
+    app.fieldInstructionsButton = InstructionButton(105, 500, 175, 50, "Toggle Instructions")
 
     #splices app.WR routes to get left and right route
     crossingButton = RouteButton(app.width-95, 50, 
@@ -1174,15 +1186,15 @@ def drawOffense(app):
 
 def drawSideline(app):
     customComplimentRed = rgb(215, 80, 75)
-    drawCircle(app.sideLineOffset - 10, app.lineOfScrimmage, 13,
+    drawCircle(app.sideLineOffset - 10, app.lineOfScrimmage-50, 13,
                     fill=customComplimentRed, border='black')
-    drawCircle(app.sideLineOffset - 20, app.lineOfScrimmage + 25, 13,
+    drawCircle(app.sideLineOffset - 20, app.lineOfScrimmage -25, 13,
                     fill=customComplimentRed, border='black')
-    drawCircle(app.sideLineOffset - 20, app.lineOfScrimmage - 25, 13,
+    drawCircle(app.sideLineOffset - 20, app.lineOfScrimmage - 75, 13,
                     fill=customComplimentRed, border='black')
-    drawCircle(app.sideLineOffset - 25, app.lineOfScrimmage - 50, 13,
+    drawCircle(app.sideLineOffset - 25, app.lineOfScrimmage - 100, 13,
                     fill=customComplimentRed, border='black')
-    drawCircle(app.sideLineOffset - 25, app.lineOfScrimmage - 75, 13,
+    drawCircle(app.sideLineOffset - 25, app.lineOfScrimmage - 125, 13,
                     fill=customComplimentRed, border='black')
     
     drawCircle(42, 170, 13, fill=customComplimentRed, border='black')
@@ -1246,6 +1258,53 @@ def drawSideline(app):
     drawCircle(app.width-40, 642, 13, fill='white', border='black')
     drawCircle(app.width-49, 675, 13, fill='white', border='black')
     drawCircle(app.width-42, 702, 13, fill='white', border='black')
+
+def drawFieldInstructions(app):
+    offset = 175
+    drawRect(app.width//2, app.height//2-offset, 500, 350, 
+                fill=rgb(60, 100, 60), border='black', 
+                opacity = 88,align='center')
+    drawLabel("Instructions:", app.width//2, app.height//2 - offset - 130, 
+                size=45, bold=True)
+
+    drawLabel("- Press the spacebar to pause/resume", 
+                app.width//2-200, app.height//2 - offset - 70, 
+                size=18, bold=True, align='left')
+
+    drawLabel("- Click and hold to throw the ball", 
+                app.width//2-200, app.height//2 - offset - 40, 
+                size=18, bold=True, align='left')
+
+    drawLabel("Hold longer for a faster throw", 
+                app.width//2-150, app.height//2 - offset - 15, 
+                size=18, bold=True, align='left')
+    
+    drawLabel("- Use arrow keys to move ball carrier",
+                app.width//2-200, app.height//2 - offset + 15, 
+                size=18, bold=True, align='left')
+
+    drawLabel("- Press 'S' to step by one frame when paused", 
+                app.width//2-200, app.height//2 - offset + 45, 
+                size=18, bold=True, align='left')
+
+    drawLabel("- Press 'R' to reset the play", 
+                app.width//2-200, app.height//2 - offset + 75, 
+                size=18, bold=True, align='left')
+
+    drawLabel("- Press 'P' to toggle pash rushers", 
+                app.width//2-200, app.height//2 - offset + 105, 
+                size=18, bold=True, align='left')
+
+    closingRectCX = app.width//2 + 220
+    closingRectCY = app.height//2 - offset*1.85
+
+    drawRect(closingRectCX, closingRectCY, 20, 20, fill=rgb(60, 60, 60), border=rgb(40, 40, 40), 
+                borderWidth=3, align='center', opacity=50)
+    
+    drawLine((closingRectCX-10), (closingRectCY-10), (closingRectCX+10), (closingRectCY+10), 
+                fill=rgb(40, 40, 40), lineWidth=2, opacity=70)
+    drawLine((closingRectCX-10), (closingRectCY+10), (closingRectCX+10), (closingRectCY-10), 
+                fill=rgb(40, 40, 40), lineWidth=2, opacity=70)
 
 def drawMainMenu(app):
     customGreen = rgb(27, 150, 85)
@@ -1312,40 +1371,6 @@ def drawMainMenu(app):
 def drawFieldButtons(app):
     for button in app.fieldButtons:
         button.draw()
- 
-def drawControlsMenu(app):
-    menuHeight = 130
-    margin = 7
-    left = margin
-    width = app.width - margin*2
-    top = app.height - menuHeight - margin
-
-    # translucent background so it doesn't block much of the field
-    
-    drawRect(left, top, width, menuHeight, 
-             fill=rgb(20,20,20), border='black', opacity=85)
-
-    textLeft = left + 10
-    lineY = top + 14
-    lineSpacing = 30
-
-    drawLabel("General Controls:", textLeft, lineY, size=12, fill='white', align='left')
-    
-    drawLabel("P: Pause/Resume    Space: Step once    R: Reset", textLeft+100, 
-              lineY, size=15, fill='white', align='left')
-    
-    # drawLabel("Mouse:", textLeft, lineY + lineSpacing, size=12, fill='white', 
-    #           align='left')
-    drawLabel("Click a player to select/deselect. " \
-                "Drag to edit selected player's route", 
-              textLeft + 10, lineY + lineSpacing, size=15, fill='white', 
-              align='left')
-    drawLabel("Gameplay Controls:", textLeft, lineY + lineSpacing*2, 
-              size=12, fill='white', align='left')
-    drawLabel("Click and hold to throw ball. " \
-                "Hold longer for faster throw", 
-              textLeft + 50, lineY + lineSpacing*3, size=15, 
-              fill='white', align='left')
 
 def drawOffensiveMenu(app):
     drawField(app, scrimmageLine=False)
@@ -1365,13 +1390,13 @@ def drawOffensiveMenu(app):
     app.startGameButton.draw()
     app.importButton.draw()
     app.exportButton.draw()
-    app.instructionsButton.draw()
+    app.menuInstructionsButton.draw()
     #drawRoutes(app)
     drawOffense(app)
-    if app.instructionsButton.isInstructions:
-        drawInstructionsMenu(app)
+    if app.menuInstructionsButton.isInstructions:
+        drawMenuInstructionsMenu(app)
 
-def drawInstructionsMenu(app):
+def drawMenuInstructionsMenu(app):
     offset = 175
     drawRect(app.width//2, app.height//2-offset, 500, 350, 
                 fill=rgb(60, 100, 60), border='black', 
@@ -1402,6 +1427,17 @@ def drawInstructionsMenu(app):
                 app.width//2-150, app.height//2 - offset + 75, 
                 size=18, bold=True, align='left')
 
+    closingRectCX = app.width//2 + 220
+    closingRectCY = app.height//2 - offset*1.85
+
+    drawRect(closingRectCX, closingRectCY, 20, 20, fill=rgb(60, 60, 60), border=rgb(40, 40, 40), 
+                borderWidth=3, align='center', opacity=50)
+    
+    drawLine((closingRectCX-10), (closingRectCY-10), (closingRectCX+10), (closingRectCY+10), 
+                fill=rgb(40, 40, 40), lineWidth=2, opacity=70)
+    drawLine((closingRectCX-10), (closingRectCY+10), (closingRectCX+10), (closingRectCY-10), 
+                fill=rgb(40, 40, 40), lineWidth=2, opacity=70)
+
 def drawField(app, scrimmageLine=True):
     customGreen = rgb(27, 150, 85)
     drawRect(0, 0, app.width, app.height, fill=customGreen)
@@ -1428,7 +1464,7 @@ def drawField(app, scrimmageLine=True):
             drawLine(3*app.width//7, i, 3*app.width//7+10, i, fill='white')
             drawLine(4*app.width//7, i, 4*app.width//7+10, i, fill='white')
     boundaryOffset = 20
-    if scrimmageLine:
+    if scrimmageLine and not app.isPlayActive:
         drawLine(boundaryOffset+app.sideLineOffset, 
                     app.height-(app.yardStep*14), 
                     app.width-boundaryOffset-app.sideLineOffset,
@@ -1615,7 +1651,7 @@ def onMouseMove(app, mx, my):
         app.exportButton.checkBold(mx, my)
         for button in app.offensiveFormationButtons:
             button.checkBold(mx, my)
-        app.instructionsButton.checkBold(mx, my)
+        app.menuInstructionsButton.checkBold(mx, my)
         if app.isWRMenu:
             for button in app.offensiveWRRouteButtons:
                 button.checkBold(mx, my)
@@ -1628,6 +1664,7 @@ def onMouseMove(app, mx, my):
             button.checkBold(mx, my)
         if app.exportButton.text == "Export Play":
             app.exportButton.checkBold(mx, my)
+        app.fieldInstructionsButton.checkBold(mx, my)
 
 def onMousePress(app, mx, my):
     if app.isMainMenu:
@@ -1638,15 +1675,35 @@ def onMousePress(app, mx, my):
             app.isOffensiveMenu = True
     elif app.isField:
         checkFieldButtons(app, mx, my)
+        if app.fieldInstructionsButton.isClicked(mx, my):
+            app.fieldInstructionsButton.isInstructions = not app.fieldInstructionsButton.isInstructions
+            return
         if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
             and app.playResult == ''):
             app.ballVelocity = 1
             app.throwing = True
             app.mouseX = mx
             app.mouseY = my
+        offset = 175
+        halfXButtonWidthHeight = 10
+        closingRectCX = app.width//2 + 220
+        closingRectCY = app.height//2 - offset*1.85
+        if(app.fieldInstructionsButton.isClicked(mx, my) or 
+           (app.fieldInstructionsButton.isInstructions and 
+           closingRectCX - halfXButtonWidthHeight <= mx <= closingRectCX + halfXButtonWidthHeight and
+            closingRectCY - halfXButtonWidthHeight <= my <= closingRectCY + halfXButtonWidthHeight)):
+            app.fieldInstructionsButton.isInstructions = not app.fieldInstructionsButton.isInstructions
+            return
     elif app.isOffensiveMenu:
-        if app.instructionsButton.isClicked(mx, my):
-            app.instructionsButton.isInstructions = not app.instructionsButton.isInstructions
+        offset = 175
+        halfXButtonWidthHeight = 10
+        closingRectCX = app.width//2 + 220
+        closingRectCY = app.height//2 - offset*1.85
+        if(app.menuInstructionsButton.isClicked(mx, my) or 
+           (app.menuInstructionsButton.isInstructions and 
+           closingRectCX - halfXButtonWidthHeight <= mx <= closingRectCX + halfXButtonWidthHeight and
+            closingRectCY - halfXButtonWidthHeight <= my <= closingRectCY + halfXButtonWidthHeight)):
+            app.menuInstructionsButton.isInstructions = not app.menuInstructionsButton.isInstructions
             return
         elif app.importButton.isClicked(mx, my):
             #importData(app)
@@ -1712,12 +1769,13 @@ def checkFieldButtons(app, mx, my):
         if button.isClicked(mx, my):
             if button.text == 'Reset':
                 app.isPlayActive = False
+                app.fieldInstructionsButton.isInstructions = False
                 resetApp(app)
                 return
             else:
                 app.importButton.text = "Import Play"
                 app.isPlayActive = False
-                app.instructionsButton.isInstructions = False
+                app.menuInstructionsButton.isInstructions = False
                 resetApp(app)
                 app.isField = False
                 app.isOffensiveMenu = True
