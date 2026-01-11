@@ -3,219 +3,10 @@ import random
 import math
 import copy
 import json
-'''
-To do:
-    Edit incomplete bouncing ball animation
-    Maybe make more files for different parts of the code
-'''
-def onKeyPress(app, key):
-    if not app.isField:
-        return
-    if key == 'space':
-        app.isPaused = not app.isPaused
-        if not app.isPlayActive:
-            app.isPlayActive = True
-            app.lastPlayResult = ''
-            app.lastYardsRan = 0
-            app.fieldInstructionsButton.isInstructions = False
-    elif key == 's':
-        takeStep(app)
-        if not app.isPlayActive:
-            app.isPlayActive = not app.isPlayActive
-            if app.isPlayActive:
-                app.fieldInstructionsButton.isInstructions = False
-    elif key == 'r':
-        resetApp(app)
-    elif key == 'p':
-        app.isPashRush = not app.isPashRush
 
-def onKeyHold(app, keys):
-    if app.isField:
-        if 'up' in keys and app.ball.carrier != None:
-            carrier = app.ball.carrier
-            carrier.targetY = carrier.cy-10*app.yardStep
-        if 'down' in keys and app.ball.carrier != None:
-            carrier = app.ball.carrier
-            carrier.targetY = carrier.cy+10*app.yardStep
-        if 'right' in keys and app.ball.carrier != None:
-            carrier = app.ball.carrier
-            carrier.targetX = carrier.cx+10*app.yardStep
-        if 'left' in keys and app.ball.carrier != None:
-            carrier = app.ball.carrier
-            carrier.targetX = carrier.cx-10*app.yardStep
-    elif app.isOffensiveMenu:
-        if app.selectedPlayer == None:
-            return
-        speed = 0.11
-        moveAmount = speed * app.yardStep
-        player = app.oFormation[app.selectedPlayer]
-        if 'up' in keys:
-            player.startY -= moveAmount
-            player.cy = player.startY
-            if checkInBoundaryScrimmageLine(app, player, moveAmount) != None:
-                return
-            newRoute = []
-            for (x,y) in player.route:
-                newRoute.append((x, y - moveAmount))
-            player.route = newRoute
-        if 'down' in keys:
-            player.startY += moveAmount
-            player.cy = player.startY
-            if checkInBoundaryScrimmageLine(app, player, moveAmount) != None:
-                return
-            newRoute = []
-            for (x,y) in player.route:
-                newRoute.append((x, y + moveAmount))
-            player.route = newRoute
-        if 'right' in keys:
-            player.startX += moveAmount
-            player.cx = player.startX
-            if checkInBoundaryLR(app, player, moveAmount) != None:
-                return
-            newRoute = []
-            for (x,y) in player.route:
-                newRoute.append((x + moveAmount, y))
-            player.route = newRoute
-        if 'left' in keys:
-            player.startX -= moveAmount
-            player.cx = player.startX
-            if checkInBoundaryLR(app, player, moveAmount) != None:
-                return
-            newRoute = []
-            for (x,y) in player.route:
-                newRoute.append((x - moveAmount, y))
-            player.route = newRoute
-        makeRouteInBounds(app, player)
-
-def checkInBoundaryLR(app, player, moveAmount):
-    boundaryOffset = 20
-    if player.cx <= boundaryOffset+app.sideLineOffset:
-        player.startX += moveAmount
-        player.cx = player.startX
-        return "Too Far Left"
-    elif player.cx >= app.width-boundaryOffset-app.sideLineOffset:
-        player.startX -= moveAmount
-        player.cx = player.startX
-        print('too far right')
-        return "Too Far Right"
-    return None
-
-def checkInBoundaryScrimmageLine(app, player, moveAmount):
-    scrimmageLineOffset = 13
-    lowerScreenOffset = 15
-    if player.cy <= app.lineOfScrimmage+scrimmageLineOffset:
-        player.startY += moveAmount
-        player.cy = player.startY
-        return "Too Far Up"
-    elif player.cy >= app.height-lowerScreenOffset:
-        player.startY -= moveAmount
-        player.cy = player.startY
-        return "Too Far Down"
-    return None
-
-def makeRouteInBounds(app, player):
-    newRoute = copy.deepcopy(player.route)
-    scrimmageLineOffset = 20
-    for i in range(len(player.route)):
-        x, y = player.route[i]
-        if x <= app.sideLineOffset + scrimmageLineOffset:
-            newRoute[i] = (app.sideLineOffset + scrimmageLineOffset, y)
-        if x >= app.width - app.sideLineOffset - scrimmageLineOffset:
-            newRoute[i] = (app.width - app.sideLineOffset - scrimmageLineOffset, y)
-    player.route = newRoute
-
-def onKeyRelease(app, key):
-    if key == 'up' and app.ball.carrier != None:
-        app.ball.carrier.targetY = app.ball.carrier.cy
-    elif key == 'down' and app.ball.carrier != None:
-        app.ball.carrier.targetY = app.ball.carrier.cy
-    elif key == 'left' and app.ball.carrier != None:
-        app.ball.carrier.targetX = app.ball.carrier.cx
-    elif key == 'right' and app.ball.carrier != None:
-        app.ball.carrier.targetX = app.ball.carrier.cx
-
-
-def onAppStart(app):
-    app.width = 1000
-    app.height = 750
-    app.sideLineOffset = 194
-    app.yardLine = 0
-    app.totalYards = 0
-    app.score = 0
-    app.yardStep = 20 #pixels per yard, 15
-    app.lineOfScrimmage = app.height-(app.yardStep*14) # Line of Scrimmage
-    app.stepsPerSecond = 40
-    app.yardsPerSecond = 5
-    app.velocity = app.yardsPerSecond * (app.yardStep/app.stepsPerSecond)
-    app.maxSpeed = app.velocity #pixels per step
-    app.acceleration = 0.2 * app.yardStep/app.stepsPerSecond#pixels per step^2
-    app.fieldSides = [30, app.width-30]
-    app.maxBallVelo = 6
-    app.mouseX = 0
-    app.mouseY = 0
-    app.isPashRush = True
-    app.lastPlayResult = ''
-    app.lastYardsRan = 0
-    app.indexExport = 0
-
-    loadOffensiveRoutes(app)
-    loadOffensiveFormations(app, firstTime =True)
-    loadStats(app)
-    
-    loadFieldButtons(app)
-    loadOffensiveMenuButtons(app)
-    resetApp(app)
-    app.isField = False
-    app.isMainMenu = True
-    app.isOffensiveMenu = False
-    app.isMainMenuLabelHovering = False
-    app.isWRMenu = True
-    
-
-def loadStats(app):
-    app.numCompletions = 0
-    app.attempts = 0
-    app.totalYards = 0
-    app.ints = 0
-    app.qbRun = True
-    app.statsButton = StatsButton(app.width - 100, 130, 130, 40, 'Stats')
-
-def resetApp(app, isField=True):
-    for position in app.oFormation:
-        player = app.oFormation[position]
-        player.cx = player.startX
-        player.cy = player.startY
-        player.dx = 0
-        player.dy = 0
-        if isinstance(player, SkillPlayer):
-            player.targetX = player.startX
-            player.targetY = player.startY
-    app.playIsActive = False
-    app.exportButton.text = "Export Play"
-    app.selectedPlayer = None
-    app.isDefensiveMenu = False
-    app.isOffensiveMenu = False
-    if isField:
-        app.isField = True
-    else:
-        app.isField = False
-        app.isOffensiveMenu = True
-    app.isRouteCombination = False
-    app.isPaused = True
-    app.steps = 0
-    app.playResult = ''
-    app.yardsRan = 0
-    app.isPlayActive = False
-    app.ballVelocity = 0
-    app.throwing = False
-    app.qbRun = True
-    app.ballCarrier = None
-    app.statsButton.isStats = False
-    # loadOffensiveRoutes(app)
-    # loadOffensiveFormations(app)
-    # loadOffensivePlayerRoutes(app)
-    app.ball = Ball(app.oFormation['C'].cx,app.oFormation['C'].cy,app.oFormation['C'])
-    loadDefensiveFormations(app)
+###############
+### Classes ###
+###############
 
 class Ball:
     def __init__(self, cx, cy, carrier, dx=0, dy=0, targetX=None, targetY=None):
@@ -819,9 +610,399 @@ class StatsButton(Button):
                 fill=StatsButton.customGreen4, align='center')
         drawLabel(self.text, self.cx, self.cy, size=18, 
                     bold = self.bolded, align='center')
-        
 
-#Initialize Offense
+#########################
+### Keyboard Handlers ###
+#########################
+
+def onKeyPress(app, key):
+    if not app.isField:
+        return
+    if key == 'space':
+        app.isPaused = not app.isPaused
+        if not app.isPlayActive:
+            app.isPlayActive = True
+            app.lastPlayResult = ''
+            app.lastYardsRan = 0
+            app.fieldInstructionsButton.isInstructions = False
+    elif key == 's':
+        takeStep(app)
+        if not app.isPlayActive:
+            app.isPlayActive = not app.isPlayActive
+            if app.isPlayActive:
+                app.fieldInstructionsButton.isInstructions = False
+    elif key == 'r':
+        resetApp(app)
+    elif key == 'p':
+        app.isPashRush = not app.isPashRush
+
+def onKeyHold(app, keys):
+    if app.isField:
+        if 'up' in keys and app.ball.carrier != None:
+            carrier = app.ball.carrier
+            carrier.targetY = carrier.cy-10*app.yardStep
+        if 'down' in keys and app.ball.carrier != None:
+            carrier = app.ball.carrier
+            carrier.targetY = carrier.cy+10*app.yardStep
+        if 'right' in keys and app.ball.carrier != None:
+            carrier = app.ball.carrier
+            carrier.targetX = carrier.cx+10*app.yardStep
+        if 'left' in keys and app.ball.carrier != None:
+            carrier = app.ball.carrier
+            carrier.targetX = carrier.cx-10*app.yardStep
+    elif app.isOffensiveMenu:
+        if app.selectedPlayer == None:
+            return
+        speed = 0.11
+        moveAmount = speed * app.yardStep
+        player = app.oFormation[app.selectedPlayer]
+        if 'up' in keys:
+            player.startY -= moveAmount
+            player.cy = player.startY
+            if checkInBoundaryScrimmageLine(app, player, moveAmount) != None:
+                return
+            newRoute = []
+            for (x,y) in player.route:
+                newRoute.append((x, y - moveAmount))
+            player.route = newRoute
+        if 'down' in keys:
+            player.startY += moveAmount
+            player.cy = player.startY
+            if checkInBoundaryScrimmageLine(app, player, moveAmount) != None:
+                return
+            newRoute = []
+            for (x,y) in player.route:
+                newRoute.append((x, y + moveAmount))
+            player.route = newRoute
+        if 'right' in keys:
+            player.startX += moveAmount
+            player.cx = player.startX
+            if checkInBoundaryLR(app, player, moveAmount) != None:
+                return
+            newRoute = []
+            for (x,y) in player.route:
+                newRoute.append((x + moveAmount, y))
+            player.route = newRoute
+        if 'left' in keys:
+            player.startX -= moveAmount
+            player.cx = player.startX
+            if checkInBoundaryLR(app, player, moveAmount) != None:
+                return
+            newRoute = []
+            for (x,y) in player.route:
+                newRoute.append((x - moveAmount, y))
+            player.route = newRoute
+        makeRouteInBounds(app, player)
+
+def onKeyRelease(app, key):
+    if key == 'up' and app.ball.carrier != None:
+        app.ball.carrier.targetY = app.ball.carrier.cy
+    elif key == 'down' and app.ball.carrier != None:
+        app.ball.carrier.targetY = app.ball.carrier.cy
+    elif key == 'left' and app.ball.carrier != None:
+        app.ball.carrier.targetX = app.ball.carrier.cx
+    elif key == 'right' and app.ball.carrier != None:
+        app.ball.carrier.targetX = app.ball.carrier.cx
+
+def onMouseMove(app, mx, my):
+    if app.isMainMenu:
+        #main button check
+        if ((app.width//2)-250<=mx<=(app.width//2)+250 and 
+            (app.height//2+45)-75<=my<=(app.height//2+45)+75):
+            app.isMainMenuLabelHovering = True
+        else: app.isMainMenuLabelHovering = False
+    elif app.isOffensiveMenu:
+        app.importButton.checkBold(mx, my)
+        app.exportButton.checkBold(mx, my)
+        for button in app.offensiveFormationButtons:
+            button.checkBold(mx, my)
+        app.menuInstructionsButton.checkBold(mx, my)
+        if app.isWRMenu:
+            for button in app.offensiveWRRouteButtons:
+                button.checkBold(mx, my)
+        else:
+            for button in app.offensiveRBRouteButtons:
+                button.checkBold(mx, my)
+        app.startGameButton.checkBold(mx, my)
+    elif app.isField:
+        for button in app.fieldButtons:
+            button.checkBold(mx, my)
+        if app.exportButton.text == "Export Play":
+            app.exportButton.checkBold(mx, my)
+        app.fieldInstructionsButton.checkBold(mx, my)
+        app.statsButton.checkBold(mx, my)
+
+def onMousePress(app, mx, my):
+    app.exportButton.text = "Export Play"
+    app.importButton.text = "Import Play"
+    if app.isMainMenu:
+        if ((app.width//2)-250<=mx<=(app.width//2)+250 and 
+            (app.height//2+45)-75<=my<=(app.height//2+45)+75):
+            app.isMainMenuLabelHovering = False
+            app.isMainMenu = False
+            app.isOffensiveMenu = True
+    elif app.isField:
+        checkFieldButtons(app, mx, my)
+        if app.statsButton.isClicked(mx, my) and (app.playResult != '' or app.isPaused):
+            app.statsButton.isStats = not app.statsButton.isStats
+            return
+        if app.fieldInstructionsButton.isClicked(mx, my) and (app.playResult != '' or app.isPaused):
+            app.fieldInstructionsButton.isInstructions = not app.fieldInstructionsButton.isInstructions
+            return
+        if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
+            and app.playResult == ''):
+            app.ballVelocity = 1
+            app.qbRun = False
+            app.throwing = True
+            app.mouseX = mx
+            app.mouseY = my
+        offset = 175
+        halfXButtonWidthHeight = 10
+        closingRectCX = app.width//2 + 220
+        closingRectCY = app.height//2 - offset*1.85
+        if(app.fieldInstructionsButton.isClicked(mx, my) or 
+           (app.fieldInstructionsButton.isInstructions and 
+           closingRectCX - halfXButtonWidthHeight <= mx <= closingRectCX + halfXButtonWidthHeight and
+            closingRectCY - halfXButtonWidthHeight <= my <= closingRectCY + halfXButtonWidthHeight)):
+            app.fieldInstructionsButton.isInstructions = not app.fieldInstructionsButton.isInstructions
+            return
+    elif app.isOffensiveMenu:
+        offset = 175
+        halfXButtonWidthHeight = 10
+        closingRectCX = app.width//2 + 220
+        closingRectCY = app.height//2 - offset*1.85
+        if(app.menuInstructionsButton.isClicked(mx, my) or 
+           (app.menuInstructionsButton.isInstructions and 
+           closingRectCX - halfXButtonWidthHeight <= mx <= closingRectCX + halfXButtonWidthHeight and
+            closingRectCY - halfXButtonWidthHeight <= my <= closingRectCY + halfXButtonWidthHeight)):
+            app.menuInstructionsButton.isInstructions = not app.menuInstructionsButton.isInstructions
+            return
+        elif app.importButton.isClicked(mx, my):
+            importData(app)
+        elif app.exportButton.isClicked(mx, my):
+            exportData(app)
+        for button in app.offensiveFormationButtons:
+            if button.isClicked(mx, my):
+                app.oFormation = button.formation
+                app.selectedPlayer = None
+                return
+        if app.isWRMenu:
+            for button in app.offensiveWRRouteButtons:
+                if button.isClicked(mx, my):
+                    if app.selectedPlayer==None: return
+                    player = app.oFormation[app.selectedPlayer]
+                    if player.cx<=app.width//2:
+                        player.route = player.translateRoute(app, button.leftRoute)
+                    else:
+                        player.route = player.translateRoute(app, button.rightRoute)
+                    return
+        else:
+            for button in app.offensiveRBRouteButtons:
+                if button.isClicked(mx, my):
+                    if app.selectedPlayer==None: return
+                    player = app.oFormation[app.selectedPlayer]
+                    if player.cx<=app.width//2:
+                        player.route = player.translateRoute(app, button.leftRoute)
+                    else:
+                        player.route = player.translateRoute(app, button.rightRoute)
+                    return
+        for position in app.oFormation:
+            if 'WR' in position or "TE" in position:
+                player = app.oFormation[position]
+                if distance(player.cx, player.cy, mx, my) <= 13:
+                    if app.selectedPlayer == position:
+                        app.selectedPlayer = None
+                    else:
+                        app.selectedPlayer = position
+                        app.isWRMenu = True
+            elif "RB" in position:
+                player = app.oFormation[position]
+                if distance(player.cx, player.cy, mx, my) <= 13:
+                    if app.selectedPlayer == position:
+                        app.selectedPlayer = None
+                    else:
+                        app.selectedPlayer = position
+                        app.isWRMenu = False
+        if app.startGameButton.isClicked(mx, my):
+            app.isField = True
+            app.isOffensiveMenu = False
+            app.selectedPlayer = None
+            app.dFormation = initializeCoverOne(app)
+            app.isPlayActive = False
+
+def onMouseDrag(app, mouseX, mouseY):
+    boundaryOffset = 20
+    if (app.isOffensiveMenu and app.selectedPlayer != None and
+       (mouseX >= app.sideLineOffset+boundaryOffset 
+       and mouseX <= app.width - app.sideLineOffset-boundaryOffset)):
+        player = app.oFormation[app.selectedPlayer]
+        player.route += [(mouseX, mouseY)]
+        if player.clickInPlayer(mouseX,mouseY):
+            startX = player.startX
+            startY = player.startY
+            player.route = [(startX, startY),(mouseX, mouseY)]
+    if app.isField and app.throwing:
+        app.mouseX = mouseX
+        app.mouseY = mouseY
+
+def onMouseRelease(app, mouseX, mouseY):
+    if app.throwing and app.oFormation['QB'].cy >= app.lineOfScrimmage:
+        app.throwing = False
+        app.ball.throwToTarget(mouseX, mouseY, app)
+
+########################
+### Keyboard Helpers ###
+########################
+
+def checkInBoundaryLR(app, player, moveAmount):
+    boundaryOffset = 20
+    if player.cx <= boundaryOffset+app.sideLineOffset:
+        player.startX += moveAmount
+        player.cx = player.startX
+        return "Too Far Left"
+    elif player.cx >= app.width-boundaryOffset-app.sideLineOffset:
+        player.startX -= moveAmount
+        player.cx = player.startX
+        print('too far right')
+        return "Too Far Right"
+    return None
+
+def checkInBoundaryScrimmageLine(app, player, moveAmount):
+    scrimmageLineOffset = 13
+    lowerScreenOffset = 15
+    if player.cy <= app.lineOfScrimmage+scrimmageLineOffset:
+        player.startY += moveAmount
+        player.cy = player.startY
+        return "Too Far Up"
+    elif player.cy >= app.height-lowerScreenOffset:
+        player.startY -= moveAmount
+        player.cy = player.startY
+        return "Too Far Down"
+    return None
+
+def makeRouteInBounds(app, player):
+    newRoute = copy.deepcopy(player.route)
+    scrimmageLineOffset = 20
+    for i in range(len(player.route)):
+        x, y = player.route[i]
+        if x <= app.sideLineOffset + scrimmageLineOffset:
+            newRoute[i] = (app.sideLineOffset + scrimmageLineOffset, y)
+        if x >= app.width - app.sideLineOffset - scrimmageLineOffset:
+            newRoute[i] = (app.width - app.sideLineOffset - scrimmageLineOffset, y)
+    player.route = newRoute
+
+##################
+### Step Logic ###
+##################
+
+def onStep(app):
+    if app.isPaused:
+        return
+    elif app.isField:
+        takeStep(app)
+
+def takeStep(app):
+    app.steps+=1
+    app.playIsActive = True
+    if app.throwing:
+        app.ballVelocity += 0.3
+        if app.ballVelocity >= app.maxBallVelo:
+            app.ballVelocity = app.maxBallVelo
+    app.yardsRan = (app.velocity * app.steps)/app.yardStep
+    if app.playResult == '':
+        moveDefense(app)
+        moveOffense(app)
+        handleCollisions(app)
+    else: 
+        app.throwing = False
+    app.ball.updateBallPosition(app)
+
+#########################
+### Loading functions ###
+#########################
+
+def onAppStart(app):
+    app.width = 1000
+    app.height = 750
+    app.sideLineOffset = 194
+    app.yardLine = 0
+    app.totalYards = 0
+    app.score = 0
+    app.yardStep = 20 #pixels per yard, 15
+    app.lineOfScrimmage = app.height-(app.yardStep*14) # Line of Scrimmage
+    app.stepsPerSecond = 40
+    app.yardsPerSecond = 5
+    app.velocity = app.yardsPerSecond * (app.yardStep/app.stepsPerSecond)
+    app.maxSpeed = app.velocity #pixels per step
+    app.acceleration = 0.2 * app.yardStep/app.stepsPerSecond#pixels per step^2
+    app.fieldSides = [30, app.width-30]
+    app.maxBallVelo = 6
+    app.mouseX = 0
+    app.mouseY = 0
+    app.isPashRush = True
+    app.lastPlayResult = ''
+    app.lastYardsRan = 0
+    app.indexExport = 0
+
+    loadOffensiveRoutes(app)
+    loadOffensiveFormations(app, firstTime =True)
+    loadStats(app)
+    
+    loadFieldButtons(app)
+    loadOffensiveMenuButtons(app)
+    resetApp(app)
+    app.isField = False
+    app.isMainMenu = True
+    app.isOffensiveMenu = False
+    app.isMainMenuLabelHovering = False
+    app.isWRMenu = True
+    
+
+def loadStats(app):
+    app.numCompletions = 0
+    app.attempts = 0
+    app.totalYards = 0
+    app.ints = 0
+    app.qbRun = True
+    app.statsButton = StatsButton(app.width - 100, 130, 130, 40, 'Stats')
+
+def resetApp(app, isField=True):
+    for position in app.oFormation:
+        player = app.oFormation[position]
+        player.cx = player.startX
+        player.cy = player.startY
+        player.dx = 0
+        player.dy = 0
+        if isinstance(player, SkillPlayer):
+            player.targetX = player.startX
+            player.targetY = player.startY
+    app.playIsActive = False
+    app.exportButton.text = "Export Play"
+    app.selectedPlayer = None
+    app.isDefensiveMenu = False
+    app.isOffensiveMenu = False
+    if isField:
+        app.isField = True
+    else:
+        app.isField = False
+        app.isOffensiveMenu = True
+    app.isRouteCombination = False
+    app.isPaused = True
+    app.steps = 0
+    app.playResult = ''
+    app.yardsRan = 0
+    app.isPlayActive = False
+    app.ballVelocity = 0
+    app.throwing = False
+    app.qbRun = True
+    app.ballCarrier = None
+    app.statsButton.isStats = False
+    # loadOffensiveRoutes(app)
+    # loadOffensiveFormations(app)
+    # loadOffensivePlayerRoutes(app)
+    app.ball = Ball(app.oFormation['C'].cx,app.oFormation['C'].cy,app.oFormation['C'])
+    loadDefensiveFormations(app)
+
 def loadOffensiveFormations(app, firstTime = False):
     dx = dy = 0
     app.singleBack = {'WR1' : WideReceiver(app, 310, app.lineOfScrimmage+13, 
@@ -1087,95 +1268,7 @@ def loadZones(app):
     # zones['rightDeep'] = Zone(3*fieldWidth//4+30, app.lineOfScrimmage - 12)
     
     app.zones = zones
-    
-    
-#returns a list of WR Coords  
-def getWRLocations(app):
-    wrLocations = []
-    for position in app.oFormation:
-        player = app.oFormation[position]
-        if isinstance(player, WideReceiver):
-            wrLocations.append(player)
-    return wrLocations
 
-def getTELocations(app):
-    teLocations = []
-    for position in app.oFormation:
-        player = app.oFormation[position]
-        if isinstance(player, TightEnd):
-            teLocations.append(player)
-    return teLocations
-def getRBLocations(app):
-    rbLocations = []
-    for position in app.oFormation:
-        player = app.oFormation[position]
-        if isinstance(player, RunningBack):
-            rbLocations.append(player)
-    return rbLocations
-
-def redrawAll(app):
-    if app.isField:
-        drawField(app)
-        drawSideline(app)
-        drawFieldButtons(app)
-        drawOffense(app)
-        drawDefense(app)
-        app.exportButton.draw()
-        app.ball.drawBall(app)
-        if app.throwing and app.oFormation['QB'].cy > app.lineOfScrimmage:
-            opactiyScale = 100/app.maxBallVelo
-            circleScale = 2.5
-            drawCircle(app.mouseX, app.mouseY, app.ballVelocity*circleScale, 
-                        fill=rgb(0,255,0), opacity=app.ballVelocity*opactiyScale)
-        # drawLabel('ball height' + str(app.ball.height), 300, 300, size=22, 
-        #       fill='black', align='left')
-        app.fieldInstructionsButton.draw()
-        app.statsButton.draw()
-        if (app.fieldInstructionsButton.isInstructions 
-            and (app.playResult != '' or app.isPaused)):
-            drawFieldInstructions(app)
-        if app.statsButton.isStats and (app.playResult != "" or app.isPaused):
-            drawStatsMenu(app)
-    elif app.isMainMenu:
-        drawMainMenu(app)
-    elif app.isOffensiveMenu:
-        drawOffensiveMenu(app)
-
-def drawStatsMenu(app):
-    offset = 200
-    drawRect(app.width//2, app.height//2+offset, 500, 270, 
-                fill=rgb(60, 100, 60), border='black', 
-                opacity = 93,align='center')
-
-    drawLabel("Stats:", app.width//2, app.height//2+offset - 100, 
-                size=45, bold=True)
-    
-    drawLabel("Total Yards Gained: " + str(app.totalYards), 
-                app.width//2-200, app.height//2+offset - 50, 
-                size=18, bold=True, align='left')
-
-    drawLabel("Completions: " + str(app.numCompletions) + " / " + 
-                str(app.attempts), 
-                app.width//2-200, app.height//2+offset - 25, 
-                size=18, bold=True, align='left')
-
-    drawLabel("Interceptions: " + str(app.ints),
-                app.width//2-200, app.height//2+offset, 
-                size=18, bold=True, align='left')
-    if app.lastPlayResult != "":
-        drawLabel(f"Last Play Result: {app.lastPlayResult}",
-                app.width//2-200, app.height//2+offset + 25, 
-                size=18, bold=True, align='left')
-        if app.lastPlayResult != 'Intercepted':
-            drawLabel(f"Yards on Last Play: {app.lastYardsRan}",
-                    app.width//2-200, app.height//2+offset + 50, 
-                    size=18, bold=True, align='left')
-        else:
-            drawLabel(f"Yards on Last Play: N/A",
-                    app.width//2-200, app.height//2+offset + 50, 
-                    size=18, bold=True, align='left')
-
-    
 def loadOffensiveMenuButtons(app):
     app.offensiveFormationButtons = []
     app.offensiveWRRouteButtons = []
@@ -1259,6 +1352,256 @@ def loadFieldButtons(app):
     menuButton = Button(app.sideLineOffset//2, 110, 100, 50, "Menu")
     app.fieldButtons = [resetButton, menuButton]
 
+def getWRLocations(app):
+    wrLocations = []
+    for position in app.oFormation:
+        player = app.oFormation[position]
+        if isinstance(player, WideReceiver):
+            wrLocations.append(player)
+    return wrLocations
+
+def getTELocations(app):
+    teLocations = []
+    for position in app.oFormation:
+        player = app.oFormation[position]
+        if isinstance(player, TightEnd):
+            teLocations.append(player)
+    return teLocations
+def getRBLocations(app):
+    rbLocations = []
+    for position in app.oFormation:
+        player = app.oFormation[position]
+        if isinstance(player, RunningBack):
+            rbLocations.append(player)
+    return rbLocations
+        
+############################
+### Moving Players Logic ###
+############################
+
+def moveQB(app):
+    self = app.oFormation['QB']
+    self.targetX = 10#self.cx
+    self.targetY = 10#app.lineOfScrimmage + app.yardStep*3
+    self.goToPoint(app)
+    self.cx += self.dx
+    self.cy += self.dy
+
+def moveOffense(app):
+    for position in app.oFormation:
+        player = app.oFormation[position]
+        if player == app.ball.carrier and not isinstance(player, Lineman):
+            player.goToPoint(app)
+            player.movePlayer(app)
+        elif isinstance(player, Quarterback):
+            player.targetX = player.cx
+            player.targetY = app.lineOfScrimmage + app.yardStep*3
+            player.goToPoint(app)
+            player.cx += player.dx
+            player.cy += player.dy
+        elif isinstance(player, SkillPlayer): #or \
+        #    isinstance(app.oFormation[position], TightEnd) or \
+        #    isinstance(app.oFormation[position], RunningBack):
+            if (app.ball.targetX != None and app.ball.targetY != None 
+                and not app.ball.beingSnapped):
+                player.trackBall(app)
+            elif app.ball.carrier == app.oFormation['QB']:
+                player.runRoute(app)
+            elif player == app.ball.carrier:
+                player.runWithBall(app)
+            else:
+                player.block(app)
+
+def moveDefense(app):
+    for position in app.dFormation:
+        player = app.dFormation[position]
+        if isinstance(player, CoverPlayer):
+            if (app.ball.targetX != None and app.ball.targetY != None 
+                and not app.ball.beingSnapped):
+                player.trackBall(app)
+            elif (app.ball.carrier == app.oFormation['QB'] and 
+                  app.oFormation['QB'].cy > app.lineOfScrimmage
+                  or app.ball.beingSnapped):
+                player.guardMan(app)
+            else: # try to tackle him
+                player.stopPlayer(app, app.ball.carrier)
+                player.checkTackle(app)
+        elif isinstance(player, PassRusher):
+            player.rushQB(app)
+            if app.ball.carrier == app.oFormation['QB']:
+                player.checkTackle(app)
+
+##############################
+### Moving Players Helpers ###
+##############################
+
+
+def getBallPlacement(target, app):
+    #Assumes target is a WideReceiver, TightEnd, or RunningBack
+    #Find self
+    for position in app.oFormation:
+        player = app.oFormation[position]
+        if isinstance(player, Quarterback):
+            self = player
+            break
+    ballVelo=app.velocity*3
+    playerVelo = (target.dx**2 + target.dy**2)**0.5
+    vRatio=playerVelo/ballVelo
+    C = distance(self.cx, self.cy, target.cx, target.cy)
+    _, targetAngle = getRadiusAndAngleToEndpoint(0, 0, 
+                                                   target.dx, target.dy)
+    _, angleToTarget = getRadiusAndAngleToEndpoint(target.cx, target.cy, 
+                                               self.cx, self.cy)
+    angleDifference = (targetAngle - angleToTarget) % 360
+    sinTheta = math.sin(math.radians(angleDifference))
+    playerAngle = math.degrees(math.asin(sinTheta * vRatio)) % 360
+    ballAngle= 180-(angleDifference + playerAngle)
+    Point = math.sin(math.radians(ballAngle))
+    if Point == 0:
+        Point = 0.0001
+    throwDistance = (C * sinTheta) / Point
+    throwAngle = (angleToTarget - 180) - playerAngle
+
+    ballX, ballY = getRadiusEndpoint(self.cx, self.cy, throwDistance, throwAngle)
+    #put the tartget slightly in front of the target
+    ballDistanceToself = distance(self.cx, self.cy, ballX, ballY)
+    if (self.cx == ballX) and (self.cy == ballY):
+        return ballX, ballY
+    ballToselfX =  (self.cx - ballX)/ballDistanceToself 
+    ballToselfY = (self.cy - ballY)/ballDistanceToself
+    correctedX = ballX + ballToselfX * app.yardStep*0.5
+    correctedY = ballY + ballToselfY * app.yardStep*0.5
+    return correctedX, correctedY
+def getRadiusEndpoint(cx, cy, r, theta):
+    return (cx + r*math.cos(math.radians(theta)),
+            cy - r*math.sin(math.radians(theta)))
+def getRadiusAndAngleToEndpoint(cx, cy, targetX, targetY):
+    radius = distance(cx, cy, targetX, targetY)
+    angle = math.degrees(math.atan2(cy-targetY, targetX-cx)) % 360
+    return (radius, angle)
+
+def distance(x1, y1, x2, y2):
+    return ((x2 - x1)**2 + (y2 - y1)**2)**0.5
+    
+def correctPlayers(app):
+    offset = 10*app.yardStep - app.ball.carrier.cy
+    players = list(app.oFormation.values()) + list(app.dFormation.values())
+    for player in players:
+        player.cy += offset
+
+### Mouse Functions ###
+
+def checkFieldButtons(app, mx, my):
+    if (app.exportButton.text == "Export Play" and 
+            app.exportButton.isClicked(mx, my)):
+        exportData(app)
+    for button in app.fieldButtons:
+        if button.isClicked(mx, my):
+            if button.text == 'Reset':
+                app.isPlayActive = False
+                app.statsButton.isStats = False
+                app.fieldInstructionsButton.isInstructions = False
+                resetApp(app)
+                return
+            else:
+                app.importButton.text = "Import Play"
+                app.isPlayActive = False
+                app.menuInstructionsButton.isInstructions = False
+                resetApp(app)
+                app.isField = False
+                app.isOffensiveMenu = True
+                return
+
+def handleCollisions(app):
+    players = list(app.oFormation.values()) + list(app.dFormation.values())
+    r1 = r2 = 10  # radius of players
+    for i in range(len(players)):
+        for j in range(i+1, len(players)):
+            p1 = players[i]
+            p2 = players[j]
+            xDiff = p2.cx - p1.cx
+            yDiff = p2.cy - p1.cy
+            dist = distance(p1.cx, p1.cy, p2.cx, p2.cy)
+            if dist == 0:
+                xDiff = 0.01
+                yDiff = 0.01
+                dist = distance(0,0,xDiff,yDiff)
+            overlap = (r1 + r2) - dist
+            
+            if overlap > 7:  # collision detected
+                nx, ny = xDiff/dist, yDiff/dist
+                correction = 0.5
+            
+                p1.cx -= nx * correction 
+                p1.cy -= ny * correction 
+                p2.cx += nx * correction 
+                p2.cy += ny * correction 
+
+#########################
+### Drawing Functions ###
+#########################
+
+def redrawAll(app):
+    if app.isField:
+        drawField(app)
+        drawSideline(app)
+        drawFieldButtons(app)
+        drawOffense(app)
+        drawDefense(app)
+        app.exportButton.draw()
+        app.ball.drawBall(app)
+        if app.throwing and app.oFormation['QB'].cy > app.lineOfScrimmage:
+            opactiyScale = 100/app.maxBallVelo
+            circleScale = 2.5
+            drawCircle(app.mouseX, app.mouseY, app.ballVelocity*circleScale, 
+                        fill=rgb(0,255,0), opacity=app.ballVelocity*opactiyScale)
+        # drawLabel('ball height' + str(app.ball.height), 300, 300, size=22, 
+        #       fill='black', align='left')
+        app.fieldInstructionsButton.draw()
+        app.statsButton.draw()
+        if (app.fieldInstructionsButton.isInstructions 
+            and (app.playResult != '' or app.isPaused)):
+            drawFieldInstructions(app)
+        if app.statsButton.isStats and (app.playResult != "" or app.isPaused):
+            drawStatsMenu(app)
+    elif app.isMainMenu:
+        drawMainMenu(app)
+    elif app.isOffensiveMenu:
+        drawOffensiveMenu(app)
+
+def drawStatsMenu(app):
+    offset = 200
+    drawRect(app.width//2, app.height//2+offset, 500, 270, 
+                fill=rgb(60, 100, 60), border='black', 
+                opacity = 93,align='center')
+
+    drawLabel("Stats:", app.width//2, app.height//2+offset - 100, 
+                size=45, bold=True)
+    
+    drawLabel("Total Yards Gained: " + str(app.totalYards), 
+                app.width//2-200, app.height//2+offset - 50, 
+                size=18, bold=True, align='left')
+
+    drawLabel("Completions: " + str(app.numCompletions) + " / " + 
+                str(app.attempts), 
+                app.width//2-200, app.height//2+offset - 25, 
+                size=18, bold=True, align='left')
+
+    drawLabel("Interceptions: " + str(app.ints),
+                app.width//2-200, app.height//2+offset, 
+                size=18, bold=True, align='left')
+    if app.lastPlayResult != "":
+        drawLabel(f"Last Play Result: {app.lastPlayResult}",
+                app.width//2-200, app.height//2+offset + 25, 
+                size=18, bold=True, align='left')
+        if app.lastPlayResult != 'Intercepted':
+            drawLabel(f"Yards on Last Play: {app.lastYardsRan}",
+                    app.width//2-200, app.height//2+offset + 50, 
+                    size=18, bold=True, align='left')
+        else:
+            drawLabel(f"Yards on Last Play: N/A",
+                    app.width//2-200, app.height//2+offset + 50, 
+                    size=18, bold=True, align='left')
 
 def drawDefense(app):
     offset = 0
@@ -1567,362 +1910,11 @@ def drawField(app, scrimmageLine=True):
     drawLine(app.width-boundaryOffset-app.sideLineOffset, 0, 
                 app.width-boundaryOffset-app.sideLineOffset, app.height,
                 fill='white', lineWidth=4)
-    
-#### Moving Logic ####
-def moveOffense(app):
-    for position in app.oFormation:
-        player = app.oFormation[position]
-        if player == app.ball.carrier and not isinstance(player, Lineman):
-            player.goToPoint(app)
-            player.movePlayer(app)
-        elif isinstance(player, Quarterback):
-            player.targetX = player.cx
-            player.targetY = app.lineOfScrimmage + app.yardStep*3
-            player.goToPoint(app)
-            player.cx += player.dx
-            player.cy += player.dy
-        elif isinstance(player, SkillPlayer): #or \
-        #    isinstance(app.oFormation[position], TightEnd) or \
-        #    isinstance(app.oFormation[position], RunningBack):
-            if (app.ball.targetX != None and app.ball.targetY != None 
-                and not app.ball.beingSnapped):
-                player.trackBall(app)
-            elif app.ball.carrier == app.oFormation['QB']:
-                player.runRoute(app)
-            elif player == app.ball.carrier:
-                player.runWithBall(app)
-            else:
-                player.block(app)
 
-            # step1Length = ((player.route.x1 - player.cx)**2 + (player.route.y1 - player.cy)**2)**0.5
-            # step2Length = ((player.route.x2-player.cx)**2 + (player.route.y2-player.cy)**2)**0.5
-            
-            # if  step1Length <= app.yardsRan * app.yardStep:
-            #     if  step1Length + step2Length <= app.yardsRan * app.yardStep:
-            #         player.dx, player.dy = 0, 0
-            #         #print('None')
-            #     else:
-            #         targetX = player.route.x2
-            #         targetY = player.route.y2
-            #         player.dx, player.dy = goToPoint(app,player,targetX, targetY)
-                    
-            # else:  
-            #     targetX =player.route.x1
-            #     targetY = player.route.y1
-            #     player.dx, player.dy = goToPoint(app,player,targetX, targetY)
-            # player.cx+=player.dx
-            # player.cy+=player.dy
-            # if player.cx <= 24:
-            #     player.cx = 24
-            # elif player.cx >= app.width-24:
-            #     player.cx = app.width-24
+####################################
+### Import/Export Data Functions ###
+####################################
 
-            #print(player, cx, cy, dx, dy, player.route)
-def moveDefense(app):
-    for position in app.dFormation:
-        player = app.dFormation[position]
-        if isinstance(player, CoverPlayer):
-            if (app.ball.targetX != None and app.ball.targetY != None 
-                and not app.ball.beingSnapped):
-                player.trackBall(app)
-            elif (app.ball.carrier == app.oFormation['QB'] and 
-                  app.oFormation['QB'].cy > app.lineOfScrimmage
-                  or app.ball.beingSnapped):
-                player.guardMan(app)
-            else: # try to tackle him
-                player.stopPlayer(app, app.ball.carrier)
-                player.checkTackle(app)
-        elif isinstance(player, PassRusher):
-            player.rushQB(app)
-            if app.ball.carrier == app.oFormation['QB']:
-                player.checkTackle(app)
-
-            # targetX, targetY = getBallPlacement(player.man, app)
-            # player.dx, player.dy = goToPoint(app,player,targetX, targetY)
-            # player.cx += player.dx
-            # player.cy += player.dy
-            # if player.cx <= 24:
-            #     player.cx = 24
-            # elif player.cx >= app.width-24:
-            #     player.cx = app.width-24
-def getBallPlacement(target, app):
-    #Assumes target is a WideReceiver, TightEnd, or RunningBack
-    #Find self
-    for position in app.oFormation:
-        player = app.oFormation[position]
-        if isinstance(player, Quarterback):
-            self = player
-            break
-    ballVelo=app.velocity*3
-    playerVelo = (target.dx**2 + target.dy**2)**0.5
-    vRatio=playerVelo/ballVelo
-    C = distance(self.cx, self.cy, target.cx, target.cy)
-    _, targetAngle = getRadiusAndAngleToEndpoint(0, 0, 
-                                                   target.dx, target.dy)
-    _, angleToTarget = getRadiusAndAngleToEndpoint(target.cx, target.cy, 
-                                               self.cx, self.cy)
-    angleDifference = (targetAngle - angleToTarget) % 360
-    sinTheta = math.sin(math.radians(angleDifference))
-    playerAngle = math.degrees(math.asin(sinTheta * vRatio)) % 360
-    ballAngle= 180-(angleDifference + playerAngle)
-    Point = math.sin(math.radians(ballAngle))
-    if Point == 0:
-        Point = 0.0001
-    throwDistance = (C * sinTheta) / Point
-    throwAngle = (angleToTarget - 180) - playerAngle
-
-    ballX, ballY = getRadiusEndpoint(self.cx, self.cy, throwDistance, throwAngle)
-    #put the tartget slightly in front of the target
-    ballDistanceToself = distance(self.cx, self.cy, ballX, ballY)
-    if (self.cx == ballX) and (self.cy == ballY):
-        return ballX, ballY
-    ballToselfX =  (self.cx - ballX)/ballDistanceToself 
-    ballToselfY = (self.cy - ballY)/ballDistanceToself
-    correctedX = ballX + ballToselfX * app.yardStep*0.5
-    correctedY = ballY + ballToselfY * app.yardStep*0.5
-    return correctedX, correctedY
-def getRadiusEndpoint(cx, cy, r, theta):
-    return (cx + r*math.cos(math.radians(theta)),
-            cy - r*math.sin(math.radians(theta)))
-def getRadiusAndAngleToEndpoint(cx, cy, targetX, targetY):
-    radius = distance(cx, cy, targetX, targetY)
-    angle = math.degrees(math.atan2(cy-targetY, targetX-cx)) % 360
-    return (radius, angle)
-
-def distance(x1, y1, x2, y2):
-    return ((x2 - x1)**2 + (y2 - y1)**2)**0.5
-def onStep(app):
-    if app.isPaused:
-        return
-    elif app.isField:
-        takeStep(app)
-
-def takeStep(app):
-    app.steps+=1
-    app.playIsActive = True
-    if app.throwing:
-        app.ballVelocity += 0.3
-        if app.ballVelocity >= app.maxBallVelo:
-            app.ballVelocity = app.maxBallVelo
-    app.yardsRan = (app.velocity * app.steps)/app.yardStep
-    if app.playResult == '':
-        moveDefense(app)
-        moveOffense(app)
-        handleCollisions(app)
-    else: 
-        app.throwing = False
-    app.ball.updateBallPosition(app)
-
-    
-def correctPlayers(app):
-    offset = 10*app.yardStep - app.ball.carrier.cy
-    players = list(app.oFormation.values()) + list(app.dFormation.values())
-    for player in players:
-        player.cy += offset
-    
-def moveQB(app):
-    self = app.oFormation['QB']
-    self.targetX = 10#self.cx
-    self.targetY = 10#app.lineOfScrimmage + app.yardStep*3
-    self.goToPoint(app)
-    self.cx += self.dx
-    self.cy += self.dy
-
-### Mouse Functions ###
-def onMouseMove(app, mx, my):
-    if app.isMainMenu:
-        #main button check
-        if ((app.width//2)-250<=mx<=(app.width//2)+250 and 
-            (app.height//2+45)-75<=my<=(app.height//2+45)+75):
-            app.isMainMenuLabelHovering = True
-        else: app.isMainMenuLabelHovering = False
-    elif app.isOffensiveMenu:
-        app.importButton.checkBold(mx, my)
-        app.exportButton.checkBold(mx, my)
-        for button in app.offensiveFormationButtons:
-            button.checkBold(mx, my)
-        app.menuInstructionsButton.checkBold(mx, my)
-        if app.isWRMenu:
-            for button in app.offensiveWRRouteButtons:
-                button.checkBold(mx, my)
-        else:
-            for button in app.offensiveRBRouteButtons:
-                button.checkBold(mx, my)
-        app.startGameButton.checkBold(mx, my)
-    elif app.isField:
-        for button in app.fieldButtons:
-            button.checkBold(mx, my)
-        if app.exportButton.text == "Export Play":
-            app.exportButton.checkBold(mx, my)
-        app.fieldInstructionsButton.checkBold(mx, my)
-        app.statsButton.checkBold(mx, my)
-
-def onMousePress(app, mx, my):
-    app.exportButton.text = "Export Play"
-    app.importButton.text = "Import Play"
-    if app.isMainMenu:
-        if ((app.width//2)-250<=mx<=(app.width//2)+250 and 
-            (app.height//2+45)-75<=my<=(app.height//2+45)+75):
-            app.isMainMenuLabelHovering = False
-            app.isMainMenu = False
-            app.isOffensiveMenu = True
-    elif app.isField:
-        checkFieldButtons(app, mx, my)
-        if app.statsButton.isClicked(mx, my) and (app.playResult != '' or app.isPaused):
-            app.statsButton.isStats = not app.statsButton.isStats
-            return
-        if app.fieldInstructionsButton.isClicked(mx, my) and (app.playResult != '' or app.isPaused):
-            app.fieldInstructionsButton.isInstructions = not app.fieldInstructionsButton.isInstructions
-            return
-        if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
-            and app.playResult == ''):
-            app.ballVelocity = 1
-            app.qbRun = False
-            app.throwing = True
-            app.mouseX = mx
-            app.mouseY = my
-        offset = 175
-        halfXButtonWidthHeight = 10
-        closingRectCX = app.width//2 + 220
-        closingRectCY = app.height//2 - offset*1.85
-        if(app.fieldInstructionsButton.isClicked(mx, my) or 
-           (app.fieldInstructionsButton.isInstructions and 
-           closingRectCX - halfXButtonWidthHeight <= mx <= closingRectCX + halfXButtonWidthHeight and
-            closingRectCY - halfXButtonWidthHeight <= my <= closingRectCY + halfXButtonWidthHeight)):
-            app.fieldInstructionsButton.isInstructions = not app.fieldInstructionsButton.isInstructions
-            return
-    elif app.isOffensiveMenu:
-        offset = 175
-        halfXButtonWidthHeight = 10
-        closingRectCX = app.width//2 + 220
-        closingRectCY = app.height//2 - offset*1.85
-        if(app.menuInstructionsButton.isClicked(mx, my) or 
-           (app.menuInstructionsButton.isInstructions and 
-           closingRectCX - halfXButtonWidthHeight <= mx <= closingRectCX + halfXButtonWidthHeight and
-            closingRectCY - halfXButtonWidthHeight <= my <= closingRectCY + halfXButtonWidthHeight)):
-            app.menuInstructionsButton.isInstructions = not app.menuInstructionsButton.isInstructions
-            return
-        elif app.importButton.isClicked(mx, my):
-            importData(app)
-        elif app.exportButton.isClicked(mx, my):
-            exportData(app)
-        for button in app.offensiveFormationButtons:
-            if button.isClicked(mx, my):
-                app.oFormation = button.formation
-                app.selectedPlayer = None
-                return
-        if app.isWRMenu:
-            for button in app.offensiveWRRouteButtons:
-                if button.isClicked(mx, my):
-                    if app.selectedPlayer==None: return
-                    player = app.oFormation[app.selectedPlayer]
-                    if player.cx<=app.width//2:
-                        player.route = player.translateRoute(app, button.leftRoute)
-                    else:
-                        player.route = player.translateRoute(app, button.rightRoute)
-                    return
-        else:
-            for button in app.offensiveRBRouteButtons:
-                if button.isClicked(mx, my):
-                    if app.selectedPlayer==None: return
-                    player = app.oFormation[app.selectedPlayer]
-                    if player.cx<=app.width//2:
-                        player.route = player.translateRoute(app, button.leftRoute)
-                    else:
-                        player.route = player.translateRoute(app, button.rightRoute)
-                    return
-        for position in app.oFormation:
-            if 'WR' in position or "TE" in position:
-                player = app.oFormation[position]
-                if distance(player.cx, player.cy, mx, my) <= 13:
-                    if app.selectedPlayer == position:
-                        app.selectedPlayer = None
-                    else:
-                        app.selectedPlayer = position
-                        app.isWRMenu = True
-            elif "RB" in position:
-                player = app.oFormation[position]
-                if distance(player.cx, player.cy, mx, my) <= 13:
-                    if app.selectedPlayer == position:
-                        app.selectedPlayer = None
-                    else:
-                        app.selectedPlayer = position
-                        app.isWRMenu = False
-        if app.startGameButton.isClicked(mx, my):
-            app.isField = True
-            app.isOffensiveMenu = False
-            app.selectedPlayer = None
-            app.dFormation = initializeCoverOne(app)
-            app.isPlayActive = False
-
-def checkFieldButtons(app, mx, my):
-    if (app.exportButton.text == "Export Play" and 
-            app.exportButton.isClicked(mx, my)):
-        exportData(app)
-    for button in app.fieldButtons:
-        if button.isClicked(mx, my):
-            if button.text == 'Reset':
-                app.isPlayActive = False
-                app.statsButton.isStats = False
-                app.fieldInstructionsButton.isInstructions = False
-                resetApp(app)
-                return
-            else:
-                app.importButton.text = "Import Play"
-                app.isPlayActive = False
-                app.menuInstructionsButton.isInstructions = False
-                resetApp(app)
-                app.isField = False
-                app.isOffensiveMenu = True
-                return
-
-def onMouseDrag(app, mouseX, mouseY):
-    boundaryOffset = 20
-    if (app.isOffensiveMenu and app.selectedPlayer != None and
-       (mouseX >= app.sideLineOffset+boundaryOffset 
-       and mouseX <= app.width - app.sideLineOffset-boundaryOffset)):
-        player = app.oFormation[app.selectedPlayer]
-        player.route += [(mouseX, mouseY)]
-        if player.clickInPlayer(mouseX,mouseY):
-            startX = player.startX
-            startY = player.startY
-            player.route = [(startX, startY),(mouseX, mouseY)]
-    if app.isField and app.throwing:
-        app.mouseX = mouseX
-        app.mouseY = mouseY
-    
-def onMouseRelease(app, mouseX, mouseY):
-    if app.throwing and app.oFormation['QB'].cy >= app.lineOfScrimmage:
-        app.throwing = False
-        app.ball.throwToTarget(mouseX, mouseY, app)
-
-def handleCollisions(app):
-    players = list(app.oFormation.values()) + list(app.dFormation.values())
-    r1 = r2 = 10  # radius of players
-    for i in range(len(players)):
-        for j in range(i+1, len(players)):
-            p1 = players[i]
-            p2 = players[j]
-            xDiff = p2.cx - p1.cx
-            yDiff = p2.cy - p1.cy
-            dist = distance(p1.cx, p1.cy, p2.cx, p2.cy)
-            if dist == 0:
-                xDiff = 0.01
-                yDiff = 0.01
-                dist = distance(0,0,xDiff,yDiff)
-            overlap = (r1 + r2) - dist
-            
-            if overlap > 7:  # collision detected
-                nx, ny = xDiff/dist, yDiff/dist
-                correction = 0.5
-            
-                p1.cx -= nx * correction 
-                p1.cy -= ny * correction 
-                p2.cx += nx * correction 
-                p2.cy += ny * correction 
-
-### Data Functions ###
-  
 def importData(app):
     print('importing')
     app.dataPath = app.getTextInput('Input Play File Path')
@@ -1981,19 +1973,6 @@ def importData(app):
     app.offensiveFormationButtons[4].resetFormation(app, formationRes)
     app.oFormation = app.custom
 
-def checkLegalSkillPlayer(formation, position):
-    playerInfo = formation[position]
-    return ("cx" in playerInfo and "cy" in playerInfo and 
-            "dx" in playerInfo and "dy" in playerInfo and
-            "route" in playerInfo and
-            len(formation[position]) == 5)
-
-def checkLegalNormalPlayer(formation, position):
-    playerInfo = formation[position]
-    return ("cx" in playerInfo and "cy" in playerInfo and 
-            "dx" in playerInfo and "dy" in playerInfo and
-            len(formation[position]) == 4)
-
 def exportData(app):
     resetApp(app, isField = False)
     playDict = dict()
@@ -2012,7 +1991,28 @@ def exportData(app):
     app.indexExport+=1
     app.exportButton.text = "Exported!"
 
-                
+##################################
+### Import/Export Data Helpers ###
+##################################
+
+def checkLegalSkillPlayer(formation, position):
+    playerInfo = formation[position]
+    return ("cx" in playerInfo and "cy" in playerInfo and 
+            "dx" in playerInfo and "dy" in playerInfo and
+            "route" in playerInfo and
+            len(formation[position]) == 5)
+
+def checkLegalNormalPlayer(formation, position):
+    playerInfo = formation[position]
+    return ("cx" in playerInfo and "cy" in playerInfo and 
+            "dx" in playerInfo and "dy" in playerInfo and
+            len(formation[position]) == 4)
+
+############
+### Main ###
+############
+        
 def main():
     runApp()
+
 main()
