@@ -8,6 +8,8 @@ To do:
     Change how player data imported/exported
     Fix edge rushers
     Maybe make more files for different parts of the code
+    Fix yards/completions
+    Edit incomplete logic
 '''
 def onKeyPress(app, key):
     if not app.isField:
@@ -15,9 +17,10 @@ def onKeyPress(app, key):
     if key == 'space':
         app.isPaused = not app.isPaused
         if not app.isPlayActive:
-            app.isPlayActive = not app.isPlayActive
-            if app.isPlayActive:
-                app.fieldInstructionsButton.isInstructions = False
+            app.isPlayActive = True
+            app.lastPlayResult = ''
+            app.lastYardsRan = 0
+            app.fieldInstructionsButton.isInstructions = False
     elif key == 's':
         takeStep(app)
         if not app.isPlayActive:
@@ -150,23 +153,37 @@ def onAppStart(app):
     app.maxSpeed = app.velocity #pixels per step
     app.acceleration = 0.2 * app.yardStep/app.stepsPerSecond#pixels per step^2
     app.fieldSides = [30, app.width-30]
-    app.maxBallVelo = 5
+    app.maxBallVelo = 6
     app.mouseX = 0
     app.mouseY = 0
     app.isPashRush = True
+    app.lastPlayResult = ''
+    app.lastYardsRan = 0
+    app.indexExport = 0
 
     loadOffensiveRoutes(app)
     loadOffensiveFormations(app, firstTime =True)
-    resetApp(app)
-    loadOffensiveMenuButtons(app)
+    loadStats(app)
+    
     loadFieldButtons(app)
+    loadOffensiveMenuButtons(app)
+    resetApp(app)
     app.isField = False
     app.isMainMenu = True
     app.isOffensiveMenu = False
     app.isMainMenuLabelHovering = False
     app.isWRMenu = True
+    
 
-def resetApp(app):
+def loadStats(app):
+    app.numCompletions = 0
+    app.attempts = 0
+    app.totalYards = 0
+    app.ints = 0
+    app.qbRun = True
+    app.statsButton = StatsButton(app.width - 100, 130, 130, 40, 'Stats')
+
+def resetApp(app, isField=True):
     for position in app.oFormation:
         player = app.oFormation[position]
         player.cx = player.startX
@@ -177,19 +194,26 @@ def resetApp(app):
             player.targetX = player.startX
             player.targetY = player.startY
     app.playIsActive = False
+    app.exportButton.text = "Export Play"
     app.selectedPlayer = None
-    app.isField = True
     app.isDefensiveMenu = False
     app.isOffensiveMenu = False
+    if isField:
+        app.isField = True
+    else:
+        app.isField = False
+        app.isOffensiveMenu = True
     app.isRouteCombination = False
     app.isPaused = True
     app.steps = 0
+    app.playResult = ''
     app.yardsRan = 0
     app.isPlayActive = False
     app.ballVelocity = 0
     app.throwing = False
-    app.playResult = ''
+    app.qbRun = True
     app.ballCarrier = None
+    app.statsButton.isStats = False
     # loadOffensiveRoutes(app)
     # loadOffensiveFormations(app)
     # loadOffensivePlayerRoutes(app)
@@ -238,7 +262,7 @@ class Ball:
                 return
             self.cx = self.carrier.cx
             self.cy = self.carrier.cy
-        elif app.playResult == 'incomplete':
+        elif app.playResult == 'Incomplete':
             self.dx = random.randrange(-1, 2)
             self.dy = random.randrange(-1, 2)
             self.cx += self.dx
@@ -264,7 +288,10 @@ class Ball:
     def checkCatch(self, app):
         if self.height <= 0:
             #Ball hit ground
-            app.playResult = 'incomplete'
+            app.playResult = 'Incomplete'
+            app.lastPlayResult = 'Incomplete'
+            app.lastYardsRan = 0
+            app.attempts += 1
             app.isPaused = True
             self.height = 0
             self.dx, self.dy = 0, 0
@@ -287,7 +314,10 @@ class Ball:
                 #Caught!
                 self.carrier = closestReceiver
                 if isinstance(closestReceiver, CoverPlayer):
-                    app.playResult = 'intercepted'
+                    app.playResult = 'Intercepted'
+                    app.lastPlayResult = 'Intercepted'
+                    app.lastYardsRan = 0
+                    app.ints += 1
                 self.cx = closestReceiver.cx
                 self.cy = closestReceiver.cy
                 self.dx, self.dy = 0, 0
@@ -299,7 +329,10 @@ class Ball:
                 if isinstance(player, CoverPlayer):
                     distToBall = distance(self.cx, self.cy, player.cx, player.cy)
                     if distToBall <= 10:
-                        app.playResult = 'incomplete'
+                        app.playResult = 'Incomplete'
+                        app.lastPlayResult = 'Incomplete'
+                        app.lastYardsRan = 0
+                        app.attempts += 1
                         self.dx, self.dy = 0, 0
                         self.targetX, self.targetY = None, None
                         self.height = 0
@@ -469,11 +502,15 @@ class Player:
         return closest
         
 class SkillPlayer(Player):
-    def __init__(self, app,  cx, cy, dx=0, dy=0, route=None):
+    def __init__(self, app,  cx, cy, dx=0, dy=0, 
+                    route=None, translated=False):
         super().__init__( cx, cy, dx, dy)
         self.targetX = self.cx + route[0][0]*app.yardStep
         self.targetY = self.cy + route[0][1]*app.yardStep
-        self.route = self.translateRoute(app,route)
+        if not translated:
+            self.route = self.translateRoute(app,route)
+        else:
+            self.route = route
     def runRoute(self, app):
         yardsRunAlready = 0
         for i in range(1, len(self.route)):
@@ -538,15 +575,15 @@ class SkillPlayer(Player):
     
 
 class WideReceiver(SkillPlayer):
-    def __init__(self, app,  cx, cy, dx=0, dy=0, route=None):
-        super().__init__( app, cx, cy, dx, dy, route)
-    
+    def __init__(self, app,  cx, cy, dx=0, dy=0, route=None, translated=False):
+        super().__init__( app, cx, cy, dx, dy, route, translated)
+
 class RunningBack(SkillPlayer):
-    def __init__(self, app,  cx, cy, dx=0, dy=0, route=None):
-        super().__init__( app, cx, cy, dx, dy, route)
+    def __init__(self, app,  cx, cy, dx=0, dy=0, route=None, translated=False):
+        super().__init__( app, cx, cy, dx, dy, route, translated)
 class TightEnd(SkillPlayer):
-    def __init__(self, app,  cx, cy, dx=0, dy=0, route=None):
-        super().__init__( app, cx, cy, dx, dy, route)
+    def __init__(self, app,  cx, cy, dx=0, dy=0, route=None, translated=False):
+        super().__init__( app, cx, cy, dx, dy, route, translated)
 class Quarterback(Player):
     def __init__(self,  cx, cy, dx=0, dy=0):
         super().__init__( cx, cy, dx, dy)
@@ -606,7 +643,17 @@ class CoverPlayer(Player):
         ballCarrier= app.ball.carrier
         dist = distance(self.cx, self.cy, ballCarrier.cx, ballCarrier.cy)
         if dist <= 15:
-            app.playResult = 'tackled'
+            app.playResult = 'Tackled'
+            app.lastPlayResult = 'Tackled'
+            app.lastYardsRan = int((app.lineOfScrimmage - 
+                                app.ball.carrier.cy)/app.yardStep)
+            app.totalYards += int((app.lineOfScrimmage - 
+                                app.ball.carrier.cy)/app.yardStep)
+            if app.qbRun:
+                app.lastPlayResult += ' (QB Run)'
+            else:
+                app.numCompletions += 1
+                app.attempts += 1
 
 class CornerBack(CoverPlayer):
     def __init__(self,  cx, cy, dx=0, dy=0, man=None, zone=None):
@@ -628,8 +675,29 @@ class PassRusher(Player):
             self.targetX = qb.cx
             self.targetY = qb.cy
         else:
-            self.targetX = self.cx
+            #Give illusion of pass rush
+            hashOffset = 8
+            closestRusher = None
+            closestDist = float('inf')
+            for position in app.dFormation:
+                player = app.dFormation[position]
+                if (distance(player.cx, player.cy, qb.cx, qb.cy)<closestDist or
+                    closestRusher == None):
+                    closestRusher = player
+                    closestDist = distance(player.cx, player.cy, qb.cx, qb.cy)
+
+            if qb.cx < 3*app.width//7 and closestRusher == self:
+                self.rushingQB = True
+            elif qb.cx > 4*app.width//7 and closestRusher == self:
+                self.rushingQB = True
+            elif self.cx < 3*app.width//7+hashOffset:
+                self.targetX = 3*app.width//7+hashOffset
+            elif self.cx > 4*app.width//7-hashOffset:
+                self.targetX = 4*app.width//7-hashOffset
+            else:
+                self.targetX = self.cx
             self.targetY = app.lineOfScrimmage + 1*app.yardStep
+            #Actual pash rush is random
             if random.randrange(0, app.stepsPerSecond*40) == 1 and app.yardsRan >3:
                 self.rushingQB = True
         self.goToPoint(app)
@@ -638,7 +706,14 @@ class PassRusher(Player):
         ballCarrier= app.ball.carrier
         dist = distance(self.cx, self.cy, ballCarrier.cx, ballCarrier.cy)
         if dist <= 15:
-            app.playResult = 'tackled'
+            app.playResult = 'Tackled'
+            app.lastPlayResult = 'Tackled'
+            app.lastYardsRan = int((app.lineOfScrimmage - 
+                                app.ball.carrier.cy)/app.yardStep)
+            app.totalYards += int((app.lineOfScrimmage - 
+                                app.ball.carrier.cy)/app.yardStep)
+            app.numCompletions = 0
+            app.attempts = 0
 class DefensiveTackle(PassRusher):
     def __init__(self,  cx, cy, dx=0, dy=0):
         super().__init__( cx, cy, dx, dy)
@@ -680,6 +755,9 @@ class Button:
 class FormationButton(Button):
     def __init__(self, cx, cy, w, h, text, formation):
         super().__init__(cx, cy, w, h, text)
+        self.formation = formation
+
+    def resetFormation(self, app, formation):
         self.formation = formation
 
 class RouteButton(Button):
@@ -730,6 +808,21 @@ class exportImportButton(Button):
                 fill=exportImportButton.customGreen3, align='center')
         drawLabel(self.text, self.cx, self.cy, size=18, 
                     bold = self.bolded, align='center')
+
+class StatsButton(Button):
+    customGreen4 = rgb(10, 70, 25)
+    def __init__(self, cx, cy, w, h, text):
+        super().__init__(cx, cy, w, h, text)
+        self.isStats = False
+
+    def draw(self):
+        drawRect(self.cx, self.cy, self.w+7, self.h+4.4,
+                fill='black', align='center')
+        drawRect(self.cx, self.cy, self.w, self.h,
+                fill=StatsButton.customGreen4, align='center')
+        drawLabel(self.text, self.cx, self.cy, size=18, 
+                    bold = self.bolded, align='center')
+        
 
 #Initialize Offense
 def loadOffensiveFormations(app, firstTime = False):
@@ -1022,27 +1115,9 @@ def getRBLocations(app):
         if isinstance(player, RunningBack):
             rbLocations.append(player)
     return rbLocations
+
 def redrawAll(app):
     if app.isField:
-        if app.playResult != '':
-            menuHeight = 70
-            margin = 50
-            left = margin
-            width = app.width - margin*2
-            top = app.height/2 - menuHeight/2
-            drawRect(left, top, width, menuHeight, 
-                fill=rgb(20,20,20), border='black', opacity=85)
-            if app.playResult == 'tackled':
-                yardsGained = int((app.lineOfScrimmage - 
-                                app.ball.carrier.cy)/app.yardStep)
-                drawLabel(f"Play Result: tackled after {yardsGained} yards", 
-                        left+width/2, top + 20, size=20, fill='white', 
-                        align='center')
-            else:
-                drawLabel(f"Play Result: {app.playResult}", left+width/2, 
-                top + 20, size=20, fill='white', align='center')
-            drawLabel(f"Press R to Reset", left+width/2, 
-                top + 50, size=15, fill='white', align='center')
         drawField(app)
         drawSideline(app)
         drawFieldButtons(app)
@@ -1050,22 +1125,59 @@ def redrawAll(app):
         drawDefense(app)
         app.exportButton.draw()
         app.ball.drawBall(app)
-        if app.throwing:
-            drawCircle(app.mouseX, app.mouseY, app.ballVelocity*3, fill='yellow')
+        if app.throwing and app.oFormation['QB'].cy > app.lineOfScrimmage:
+            opactiyScale = 100/app.maxBallVelo
+            circleScale = 2.5
+            drawCircle(app.mouseX, app.mouseY, app.ballVelocity*circleScale, 
+                        fill=rgb(0,255,0), opacity=app.ballVelocity*opactiyScale)
         # drawLabel('ball height' + str(app.ball.height), 300, 300, size=22, 
         #       fill='black', align='left')
         app.fieldInstructionsButton.draw()
+        app.statsButton.draw()
         if app.fieldInstructionsButton.isInstructions and app.isPaused:
             drawFieldInstructions(app)
+        if app.statsButton.isStats and (app.playResult != "" or app.isPaused):
+            drawStatsMenu(app)
     elif app.isMainMenu:
         drawMainMenu(app)
     elif app.isOffensiveMenu:
         drawOffensiveMenu(app)
-        # targetX, targetY = getBallPlacement(app.oFormation['TE'], app)
-        # drawCircle(targetX, targetY, 5, fill='brown')
-    #drawLabel(f"{app.yardsRan}", 200, 200, size=40) Debugging
+
+def drawStatsMenu(app):
+    offset = 200
+    drawRect(app.width//2, app.height//2+offset, 500, 270, 
+                fill=rgb(60, 100, 60), border='black', 
+                opacity = 93,align='center')
+
+    drawLabel("Stats:", app.width//2, app.height//2+offset - 100, 
+                size=45, bold=True)
     
-        
+    drawLabel("Total Yards Gained: " + str(app.totalYards), 
+                app.width//2-200, app.height//2+offset - 50, 
+                size=18, bold=True, align='left')
+
+    drawLabel("Completions: " + str(app.numCompletions) + " / " + 
+                str(app.attempts), 
+                app.width//2-200, app.height//2+offset - 25, 
+                size=18, bold=True, align='left')
+
+    drawLabel("Interceptions: " + str(app.ints),
+                app.width//2-200, app.height//2+offset, 
+                size=18, bold=True, align='left')
+    if app.lastPlayResult != "":
+        drawLabel(f"Last Play Result: {app.lastPlayResult}",
+                app.width//2-200, app.height//2+offset + 25, 
+                size=18, bold=True, align='left')
+        if app.lastPlayResult != 'Intercepted':
+            drawLabel(f"Yards on Last Play: {app.lastYardsRan}",
+                    app.width//2-200, app.height//2+offset + 50, 
+                    size=18, bold=True, align='left')
+        else:
+            drawLabel(f"Yards on Last Play: N/A",
+                    app.width//2-200, app.height//2+offset + 50, 
+                    size=18, bold=True, align='left')
+
+    
 def loadOffensiveMenuButtons(app):
     app.offensiveFormationButtons = []
     app.offensiveWRRouteButtons = []
@@ -1086,8 +1198,10 @@ def loadOffensiveMenuButtons(app):
     app.offensiveFormationButtons.append(bunchButton)
     app.offensiveFormationButtons.append(customButton)
 
-    app.menuInstructionsButton = InstructionButton(105, 538, 175, 50, "Toggle Instructions")
-    app.fieldInstructionsButton = InstructionButton(105, 500, 175, 50, "Toggle Instructions")
+    app.menuInstructionsButton = InstructionButton(105, 538, 175, 50, 
+                                            "Toggle Instructions")
+    app.fieldInstructionsButton = InstructionButton(app.width - 100, 
+                                50, 180, 40, 'Toggle Instructions')
 
     #splices app.WR routes to get left and right route
     crossingButton = RouteButton(app.width-95, 50, 
@@ -1222,25 +1336,6 @@ def drawSideline(app):
                     app.lineOfScrimmage - 50, 13, fill='white', border='black')
     drawCircle(app.width - app.sideLineOffset + 20, 
                     app.lineOfScrimmage - 75, 13, fill='white', border='black')
-    
-    drawLabel(f'Completions: {app.score}', 
-            app.width-app.sideLineOffset//2 - 20, 50, size=23, bold=True)
-    drawLabel(f'Yards: {int(app.totalYards)}', 
-            app.width-app.sideLineOffset//2 - 30, 80, size=23, bold=True)
-    drawLabel(' Yards', app.width-app.sideLineOffset//2 - 50, 
-                110, size=20, bold=True)
-    drawLabel('________', app.width-app.sideLineOffset//2 - 50, 
-                120, size=20, bold=True)
-    drawLabel('Completion', app.width-app.sideLineOffset//2 - 50, 
-                135, size=18, bold=True)
-    drawLabel('=', app.width-app.sideLineOffset//2 +10, 
-                125, size=20, bold=True)
-    if app.score!=0:
-        drawLabel(f'{pythonRound(app.totalYards/app.score, 1)}', 
-            app.width-app.sideLineOffset//2 + 50, 125, size=30, bold=True)
-    else:
-        drawLabel('0', app.width-app.sideLineOffset//2 + 30, 
-                    125, size=30, bold=True)
 
     drawCircle(app.width-42, 175, 13, fill='white', border='black')
     drawCircle(app.width-45, 202, 13, fill='white', border='black')
@@ -1445,7 +1540,6 @@ def drawField(app, scrimmageLine=True):
     fiveCount=0
     #Draw Yard Lines
     for i in range(app.height, 0, -app.yardStep):
-        #Make it long yard line every 5 yards
         fiveCount+=1
         if fiveCount%5==0:
             drawLine(30+app.sideLineOffset, i, 
@@ -1606,8 +1700,6 @@ def onStep(app):
         takeStep(app)
 
 def takeStep(app):
-    #print(app.ball.carrier)
-    #app.getTextInput()
     app.steps+=1
     app.playIsActive = True
     if app.throwing:
@@ -1665,8 +1757,11 @@ def onMouseMove(app, mx, my):
         if app.exportButton.text == "Export Play":
             app.exportButton.checkBold(mx, my)
         app.fieldInstructionsButton.checkBold(mx, my)
+        app.statsButton.checkBold(mx, my)
 
 def onMousePress(app, mx, my):
+    app.exportButton.text = "Export Play"
+    app.importButton.text = "Import Play"
     if app.isMainMenu:
         if ((app.width//2)-250<=mx<=(app.width//2)+250 and 
             (app.height//2+45)-75<=my<=(app.height//2+45)+75):
@@ -1675,12 +1770,16 @@ def onMousePress(app, mx, my):
             app.isOffensiveMenu = True
     elif app.isField:
         checkFieldButtons(app, mx, my)
+        if app.statsButton.isClicked(mx, my) and (app.playResult != '' or app.isPaused):
+            app.statsButton.isStats = not app.statsButton.isStats
+            return
         if app.fieldInstructionsButton.isClicked(mx, my):
             app.fieldInstructionsButton.isInstructions = not app.fieldInstructionsButton.isInstructions
             return
         if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
             and app.playResult == ''):
             app.ballVelocity = 1
+            app.qbRun = False
             app.throwing = True
             app.mouseX = mx
             app.mouseY = my
@@ -1706,11 +1805,9 @@ def onMousePress(app, mx, my):
             app.menuInstructionsButton.isInstructions = not app.menuInstructionsButton.isInstructions
             return
         elif app.importButton.isClicked(mx, my):
-            #importData(app)
-            pass
+            importData(app)
         elif app.exportButton.isClicked(mx, my):
-            #exportData(app)
-            pass
+            exportData(app)
         for button in app.offensiveFormationButtons:
             if button.isClicked(mx, my):
                 app.oFormation = button.formation
@@ -1763,12 +1860,12 @@ def onMousePress(app, mx, my):
 def checkFieldButtons(app, mx, my):
     if (app.exportButton.text == "Export Play" and 
             app.exportButton.isClicked(mx, my)):
-        #exportData(app)
-        pass
+        exportData(app)
     for button in app.fieldButtons:
         if button.isClicked(mx, my):
             if button.text == 'Reset':
                 app.isPlayActive = False
+                app.statsButton.isStats = False
                 app.fieldInstructionsButton.isInstructions = False
                 resetApp(app)
                 return
@@ -1797,7 +1894,7 @@ def onMouseDrag(app, mouseX, mouseY):
         app.mouseY = mouseY
     
 def onMouseRelease(app, mouseX, mouseY):
-    if app.throwing:
+    if app.throwing and app.oFormation['QB'].cy >= app.lineOfScrimmage:
         app.throwing = False
         app.ball.throwToTarget(mouseX, mouseY, app)
 
@@ -1828,96 +1925,94 @@ def handleCollisions(app):
 
 ### Data Functions ###
   
-# def importData(app):
-#     print('importing')
-#     app.dataPath = app.getTextInput('Input Play File Path')
-#     try: 
-#         with open(app.dataPath, 'r') as file:
-#             formation = json.load(file)
-#     except FileNotFoundError:
-#         app.importButton.text = "File Not Found"
-#         print('Invalid File')
-#         return
-#     if not isinstance(formation, dict): 
-#         print('Error: Invalid Player Data')
-#         return
-#     formationRes = dict()
-#     for position in formation:
-#         if "WR" in position or "RB" in position or "TE" in position:
-#             isLegal = checkLegalSkillPlayer(formation, position)
-#             if not isLegal:
-#                 app.importButton.text = "Invalid Data"
-#                 print('Error: Invalid Skill Player Data')
-#                 return
-#             playerInfo = formation[position]
-#             route = Route((playerInfo["routeDX1"], 
-#                         playerInfo["routeDY1"]),
-#                         (playerInfo["routeDX2"],
-#                         playerInfo["routeDY2"]))
-#             if "WR" in position:
-#                 formationRes[position] = WideReceiver(playerInfo["cx"],
-#                             playerInfo["cy"],playerInfo["dx"], 
-#                             playerInfo["dy"], route)
-#             elif "RB" in position:
-#                 formationRes[position] = RunningBack(playerInfo["cx"],
-#                             playerInfo["cy"],playerInfo["dx"], 
-#                             playerInfo["dy"], route)
-#             elif "TE" in position:
-#                 formationRes[position] = TightEnd(playerInfo["cx"],
-#                             playerInfo["cy"],playerInfo["dx"], 
-#                             playerInfo["dy"], route)
-#         else:
-#             isLegal = checkLegalNormalPlayer(formation, position)
-#             if not isLegal:
-#                 app.importButton.text = "Invalid Data"
-#                 print('Error: Invalid Normal Player Data')
-#                 return
-#             playerInfo = formation[position]
-#             if "QB" in position:
-#                 formationRes[position] = Quarterback(playerInfo["cx"],
-#                             playerInfo["cy"], playerInfo["dx"], 
-#                             playerInfo["dy"])
-#             else:
-#                 formationRes[position] = Lineman(playerInfo["cx"],
-#                             playerInfo["cy"],playerInfo["dx"], 
-#                             playerInfo["dy"])
-#     app.importButton.text = "Imported!"
-#     app.oFormation = formationRes
+def importData(app):
+    print('importing')
+    app.dataPath = app.getTextInput('Input Play File Path')
+    try: 
+        with open(app.dataPath, 'r') as file:
+            formation = json.load(file)
+    except FileNotFoundError:
+        app.importButton.text = "File Not Found"
+        print('Invalid File')
+        return
+    if not isinstance(formation, dict): 
+        print('Error: Invalid Player Data')
+        return
+    formationRes = dict()
+    for position in formation:
+        if "WR" in position or "RB" in position or "TE" in position:
+            print('pos', position)
+            isLegal = checkLegalSkillPlayer(formation, position)
+            if not isLegal:
+                app.importButton.text = "Invalid Data"
+                print('Error: Invalid Skill Player Data')
+                return
+            playerInfo = formation[position]
+            print('playerInfo', playerInfo)
+            route = playerInfo["route"]
+            print('route', route)
+            if "WR" in position:
+                formationRes[position] = WideReceiver(app, playerInfo["cx"],
+                            playerInfo["cy"],dx = playerInfo["dx"], 
+                            dy = playerInfo["dy"], route=route, translated = True)
+            elif "RB" in position:
+                formationRes[position] = RunningBack(app, playerInfo["cx"],
+                            playerInfo["cy"],dx = playerInfo["dx"], 
+                            dy = playerInfo["dy"], route=route, translated = True)
+            elif "TE" in position:
+                formationRes[position] = TightEnd(app, playerInfo["cx"],
+                            playerInfo["cy"],dx = playerInfo["dx"], 
+                            dy = playerInfo["dy"], route=route, translated = True)
+        else:
+            isLegal = checkLegalNormalPlayer(formation, position)
+            if not isLegal:
+                app.importButton.text = "Invalid Data"
+                print('Error: Invalid Normal Player Data')
+                return
+            playerInfo = formation[position]
+            if "QB" in position:
+                formationRes[position] = Quarterback(playerInfo["cx"],
+                            playerInfo["cy"], dx = playerInfo["dx"], 
+                            dy = playerInfo["dy"])
+            else:
+                formationRes[position] = Lineman(playerInfo["cx"],
+                            playerInfo["cy"], dx = playerInfo["dx"], 
+                            dy =playerInfo["dy"])
+    app.importButton.text = "Imported!"
+    app.custom = formationRes
+    app.offensiveFormationButtons[4].resetFormation(app, formationRes)
+    app.oFormation = app.custom
 
-# def checkLegalSkillPlayer(formation, position):
-#     playerInfo = formation[position]
-#     return ("cx" in playerInfo and "cy" in playerInfo and 
-#             "dx" in playerInfo and "dy" in playerInfo and
-#             "routeDX1" in playerInfo and "routeDY1" in playerInfo and 
-#             "routeDX2" in playerInfo and "routeDY2" in playerInfo and
-#             len(formation[position]) == 8)
+def checkLegalSkillPlayer(formation, position):
+    playerInfo = formation[position]
+    return ("cx" in playerInfo and "cy" in playerInfo and 
+            "dx" in playerInfo and "dy" in playerInfo and
+            "route" in playerInfo and
+            len(formation[position]) == 5)
 
-# def checkLegalNormalPlayer(formation, position):
-#     playerInfo = formation[position]
-#     return ("cx" in playerInfo and "cy" in playerInfo and 
-#             "dx" in playerInfo and "dy" in playerInfo and
-#             len(formation[position]) == 4)
+def checkLegalNormalPlayer(formation, position):
+    playerInfo = formation[position]
+    return ("cx" in playerInfo and "cy" in playerInfo and 
+            "dx" in playerInfo and "dy" in playerInfo and
+            len(formation[position]) == 4)
 
-# def exportData(app):
-#     resetApp(app)
-#     playDict = dict()
-#     dx = dy = 0
-#     for position in app.oFormation:
-#         player = app.oFormation[position]
-#         if "WR" in position or "RB" in position or "TE" in position:
-#             playDict[position] = {"cx": player.cx, "cy":player.cy, 
-#                                 "dx": dx, "dy":dy, 
-#                                 "routeDX1": player.route.x1, 
-#                                 "routeDY1": player.route.y1, 
-#                                 "routeDX2": player.route.x2,  
-#                                 "routeDY2": player.route.y2}
-#         else:
-#             playDict[position] = {"cx": player.cx, "cy":player.cy, 
-#                                 "dx": dx, "dy":dy}
-#     with open(f"routeLabPlay{app.indexExport}.json", "w") as file:
-#         json.dump(playDict, file, indent=2)
-#     app.indexExport+=1
-#     app.exportButton.text = "Exported!"
+def exportData(app):
+    resetApp(app, isField = False)
+    playDict = dict()
+    dx = dy = 0
+    for position in app.oFormation:
+        player = app.oFormation[position]
+        if "WR" in position or "RB" in position or "TE" in position:
+            playDict[position] = {"cx": player.cx, "cy":player.cy, 
+                                "dx": dx, "dy":dy, 
+                                "route": player.route}
+        else:
+            playDict[position] = {"cx": player.cx, "cy":player.cy, 
+                                "dx": dx, "dy":dy}
+    with open(f"routeLabPlay{app.indexExport}.json", "w") as file:
+        json.dump(playDict, file, indent=2)
+    app.indexExport+=1
+    app.exportButton.text = "Exported!"
 
                 
 def main():
