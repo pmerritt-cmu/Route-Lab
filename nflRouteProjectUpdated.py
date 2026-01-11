@@ -1931,7 +1931,6 @@ def importData(app):
     formationRes = dict()
     for position in formation:
         if "WR" in position or "RB" in position or "TE" in position:
-            print('pos', position)
             isLegal = checkLegalSkillPlayer(formation, position)
             if not isLegal:
                 app.importButton.text = "Invalid Data"
