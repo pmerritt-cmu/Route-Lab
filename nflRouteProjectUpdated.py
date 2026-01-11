@@ -787,7 +787,7 @@ def onMousePress(app, mx, my):
         elif app.importButton.isClicked(mx, my):
             importData(app)
         elif app.exportButton.isClicked(mx, my):
-            exportData(app)
+            exportData(app, isField=False)
         for button in app.offensiveFormationButtons:
             if button.isClicked(mx, my):
                 app.oFormation = button.formation
@@ -1938,9 +1938,7 @@ def importData(app):
                 print('Error: Invalid Skill Player Data')
                 return
             playerInfo = formation[position]
-            print('playerInfo', playerInfo)
             route = playerInfo["route"]
-            print('route', route)
             if "WR" in position:
                 formationRes[position] = WideReceiver(app, playerInfo["cx"],
                             playerInfo["cy"],dx = playerInfo["dx"], 
@@ -1973,8 +1971,11 @@ def importData(app):
     app.offensiveFormationButtons[4].resetFormation(app, formationRes)
     app.oFormation = app.custom
 
-def exportData(app):
-    resetApp(app, isField = False)
+def exportData(app, isField=True):
+    if not isField:
+        resetApp(app, isField = False)
+    else:
+        resetApp(app)
     playDict = dict()
     dx = dy = 0
     for position in app.oFormation:
