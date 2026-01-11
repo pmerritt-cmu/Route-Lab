@@ -5,11 +5,8 @@ import copy
 import json
 '''
 To do:
-    Change how player data imported/exported
-    Fix edge rushers
+    Edit incomplete bouncing ball animation
     Maybe make more files for different parts of the code
-    Fix yards/completions
-    Edit incomplete logic
 '''
 def onKeyPress(app, key):
     if not app.isField:
@@ -263,8 +260,8 @@ class Ball:
             self.cx = self.carrier.cx
             self.cy = self.carrier.cy
         elif app.playResult == 'Incomplete':
-            self.dx = random.randrange(-1, 2)
-            self.dy = random.randrange(-1, 2)
+            self.dx = 0 #random.randrange(-1, 2)
+            self.dy = 0 #random.randrange(-1, 2)
             self.cx += self.dx
             self.cy += self.dy
         elif self.targetX != None and self.targetY != None:
@@ -1134,7 +1131,8 @@ def redrawAll(app):
         #       fill='black', align='left')
         app.fieldInstructionsButton.draw()
         app.statsButton.draw()
-        if app.fieldInstructionsButton.isInstructions and app.isPaused:
+        if (app.fieldInstructionsButton.isInstructions 
+            and (app.playResult != '' or app.isPaused)):
             drawFieldInstructions(app)
         if app.statsButton.isStats and (app.playResult != "" or app.isPaused):
             drawStatsMenu(app)
@@ -1773,7 +1771,7 @@ def onMousePress(app, mx, my):
         if app.statsButton.isClicked(mx, my) and (app.playResult != '' or app.isPaused):
             app.statsButton.isStats = not app.statsButton.isStats
             return
-        if app.fieldInstructionsButton.isClicked(mx, my):
+        if app.fieldInstructionsButton.isClicked(mx, my) and (app.playResult != '' or app.isPaused):
             app.fieldInstructionsButton.isInstructions = not app.fieldInstructionsButton.isInstructions
             return
         if (app.playIsActive and app.ball.carrier == app.oFormation['QB'] 
