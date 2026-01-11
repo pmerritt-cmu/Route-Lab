@@ -1238,6 +1238,14 @@ def initializeCoverOne(app):
     coverOne |= toUnionCoverOne
     return coverOne
 
+def loadStats(app):
+    app.numCompletions = 0
+    app.attempts = 0
+    app.totalYards = 0
+    app.ints = 0
+    app.qbRun = True
+    app.statsButton = StatsButton(app.width - 100, 130, 130, 40, 'Stats')
+
 def loadZones(app):
     fieldLeft = 30
     fieldRight = app.width - 30
@@ -1342,6 +1350,8 @@ def loadFieldButtons(app):
     resetButton = Button(app.sideLineOffset//2, 40, 100, 50, "Reset")
     menuButton = Button(app.sideLineOffset//2, 110, 100, 50, "Menu")
     app.fieldButtons = [resetButton, menuButton]
+    app.statsbutton = StatsButton(app.width - 100, 150, 150, 40, "Stats")
+    app.statsbutton = StatsButton(app.width - 100, 150, 150, 40, "Stats")
 
 def getWRLocations(app):
     wrLocations = []
