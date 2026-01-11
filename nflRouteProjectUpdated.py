@@ -28,6 +28,7 @@ class Ball:
         angle = self.getAngle()
         drawOval(self.cx, self.cy + offset, 10 * scalefactor, 5*scalefactor, 
                  fill='brown', align='center', rotateAngle = angle)
+    
     def throwToTarget(self, targetX, targetY, app):
         self.targetX = targetX
         self.targetY = targetY
@@ -40,6 +41,7 @@ class Ball:
         self.dx = dx * ratio
         self.dy = dy * ratio
         self.distanceTravelled = 0
+    
     def updateBallPosition(self, app):
         if self.carrier != None:
             if self.carrier == app.oFormation['C']:
@@ -51,8 +53,8 @@ class Ball:
             self.cx = self.carrier.cx
             self.cy = self.carrier.cy
         elif app.playResult == 'Incomplete':
-            self.dx = 0 #random.randrange(-1, 2)
-            self.dy = 0 #random.randrange(-1, 2)
+            self.dx = 0
+            self.dy = 0
             self.cx += self.dx
             self.cy += self.dy
         elif self.targetX != None and self.targetY != None:
@@ -62,9 +64,8 @@ class Ball:
             self.distanceTravelled += app.ballVelocity
             self.updateHeight(app)
             self.checkCatch(app)
+    
     def updateHeight(self, app):
-        #distanceTravelled = self.throwDistance - distance(self.cx, self.cy,
-                                                #self.targetX, self.targetY)
         timePassed = self.distanceTravelled/app.ballVelocity
         totalTime = self.throwDistance/app.ballVelocity
         acceleration = 0.01
@@ -98,8 +99,8 @@ class Ball:
                         closestDistance = distToBall
                         closestReceiver = player
             if closestDistance <= 10:
-                self.beingSnapped = False
                 #Caught!
+                self.beingSnapped = False
                 self.carrier = closestReceiver
                 if isinstance(closestReceiver, CoverPlayer):
                     app.playResult = 'Intercepted'
@@ -139,6 +140,7 @@ class Zone:
         self.right = right
         self.top = top
         self.bottom = bottom 
+
 class Player:
     def __init__(self, cx, cy, dx=0, dy=0, targetX=None, targetY=None):
         self.startX = cx
@@ -182,9 +184,7 @@ class Player:
             self.targetX = app.width-boundaryOffset-app.sideLineOffset
         dx = self.targetX - self.cx
         dy = self.targetY - self.cy
-
         dist = distance(self.cx, self.cy, self.targetX, self.targetY)
-
         if dist == 0:
             return
 
@@ -206,32 +206,31 @@ class Player:
         if steerMag > app.acceleration:
             steerX = (steerX / steerMag) * app.acceleration
             steerY = (steerY / steerMag) * app.acceleration
-
-        # Apply acceleration to velocity
         self.dx += steerX
         self.dy += steerY
 
-        # Limit max speed
         speed = distance(0, 0, self.dx, self.dy)
         if speed > app.maxSpeed:
             self.dx = (self.dx / speed) * app.maxSpeed
             self.dy = (self.dy / speed) * app.maxSpeed
 
     def trackBall(self, app):
-        # check if ball in sight
         self.targetX = app.ball.targetX
         self.targetY = app.ball.targetY
         self.goToPoint(app)
         self.movePlayer(app)
+
     def runWithBall(self, app):
         self.targetX = self.cx
         goalLine = app.lineOfScrimmage - app.yardStep*85
         self.targetY = goalLine 
         self.goToPoint(app)
         self.movePlayer(app)
+
     def block(self, app):
         defender = self.getNearestDefender(app)
         self.stopPlayer(app, defender)
+
     def movePlayer(self, app):
         self.cx+=self.dx
         self.cy+=self.dy
@@ -240,9 +239,9 @@ class Player:
             self.cx = boundaryOffset+app.sideLineOffset
         elif self.cx >= app.width-boundaryOffset-app.sideLineOffset:
             self.cx = app.width-boundaryOffset-app.sideLineOffset
+
     def stopPlayer(self, app, target):
         #Assumes target is a WideReceiver, TightEnd, or RunningBack
-        #Find self
         playerVelo=app.maxSpeed
         targetVelo = (target.dx**2 + target.dy**2)**0.5
         vRatio=targetVelo/playerVelo
@@ -271,14 +270,7 @@ class Player:
                                                        throwAngle)
         self.goToPoint(app)
         self.movePlayer(app)
-        #put the tartget slightly in front of the target
-        # ballDistanceToself = distance(self.cx, self.cy, ballX, ballY)
-        # if (self.cx == ballX) and (self.cy == ballY):
-        #     return ballX, ballY
-        # ballToselfX =  (self.cx - ballX)/ballDistanceToself 
-        # ballToselfY = (self.cy - ballY)/ballDistanceToself
-        # correctedX = ballX + ballToselfX * app.yardStep*1
-        # correctedY = ballY + ballToselfY * app.yardStep*1
+
     def getNearestDefender(self, app):
         closestDist = None
         closest = None
@@ -299,6 +291,7 @@ class SkillPlayer(Player):
             self.route = self.translateRoute(app,route)
         else:
             self.route = route
+
     def runRoute(self, app):
         yardsRunAlready = 0
         for i in range(1, len(self.route)):
@@ -369,15 +362,19 @@ class WideReceiver(SkillPlayer):
 class RunningBack(SkillPlayer):
     def __init__(self, app,  cx, cy, dx=0, dy=0, route=None, translated=False):
         super().__init__( app, cx, cy, dx, dy, route, translated)
+
 class TightEnd(SkillPlayer):
     def __init__(self, app,  cx, cy, dx=0, dy=0, route=None, translated=False):
         super().__init__( app, cx, cy, dx, dy, route, translated)
+
 class Quarterback(Player):
     def __init__(self,  cx, cy, dx=0, dy=0):
         super().__init__( cx, cy, dx, dy)
+
 class Lineman(Player):
     def __init__(self,  cx, cy, dx=0, dy=0):
         super().__init__( cx, cy, dx, dy)
+
 class CoverPlayer(Player):
     def __init__(self,  cx, cy, dx=0, dy=0, man=None, zone=None):
         super().__init__( cx, cy, dx, dy)
@@ -385,6 +382,7 @@ class CoverPlayer(Player):
         self.man = man
         self.targetX = cx
         self.targetY = cy
+    
     def guardMan(self, app):
         if self.man == None:
             if self.zone != None:
@@ -405,6 +403,7 @@ class CoverPlayer(Player):
             self.cx = 24
         elif self.cx >= app.width-24:
             self.cx = app.width-24
+    
     def playZone(self, app):
         zone = self.zone
         #Find target point in zone
@@ -427,6 +426,7 @@ class CoverPlayer(Player):
             self.cx = 24
         elif self.cx >= app.width-24:
             self.cx = app.width-24
+    
     def checkTackle(self, app):
         ballCarrier= app.ball.carrier
         dist = distance(self.cx, self.cy, ballCarrier.cx, ballCarrier.cy)
@@ -446,13 +446,16 @@ class CoverPlayer(Player):
 class CornerBack(CoverPlayer):
     def __init__(self,  cx, cy, dx=0, dy=0, man=None, zone=None):
         super().__init__( cx, cy, dx, dy, man, zone)
+
 class LineBacker(CoverPlayer):
     def __init__(self,  cx, cy, dx=0, dy=0, man=None, zone=None):
         super().__init__( cx, cy, dx, dy, man, zone)
+
 class PassRusher(Player):
     def __init__(self,  cx, cy, dx=0, dy=0):
         super().__init__( cx, cy, dx, dy)
         self.rushingQB = False
+    
     def rushQB(self, app):
         if app.isPashRush == False:
             self.targetX = self.cx
@@ -490,6 +493,7 @@ class PassRusher(Player):
                 self.rushingQB = True
         self.goToPoint(app)
         self.movePlayer(app)
+    
     def checkTackle(self, app):
         ballCarrier= app.ball.carrier
         dist = distance(self.cx, self.cy, ballCarrier.cx, ballCarrier.cy)
@@ -502,12 +506,15 @@ class PassRusher(Player):
                                 app.ball.carrier.cy)/app.yardStep)
             app.numCompletions = 0
             app.attempts = 0
+
 class DefensiveTackle(PassRusher):
     def __init__(self,  cx, cy, dx=0, dy=0):
         super().__init__( cx, cy, dx, dy)
+
 class DefensiveEnd(PassRusher):
     def __init__(self,  cx, cy, dx=0, dy=0):
         super().__init__( cx, cy, dx, dy)
+
 class Safety(CoverPlayer):
     def __init__(self,  cx, cy, dx=0, dy=0, man=None, zone=None):
         super().__init__( cx, cy, dx, dy, man, zone)
@@ -928,13 +935,13 @@ def onAppStart(app):
     app.yardLine = 0
     app.totalYards = 0
     app.score = 0
-    app.yardStep = 20 #pixels per yard, 15
-    app.lineOfScrimmage = app.height-(app.yardStep*14) # Line of Scrimmage
+    app.yardStep = 20
+    app.lineOfScrimmage = app.height-(app.yardStep*14)
     app.stepsPerSecond = 40
     app.yardsPerSecond = 5
     app.velocity = app.yardsPerSecond * (app.yardStep/app.stepsPerSecond)
-    app.maxSpeed = app.velocity #pixels per step
-    app.acceleration = 0.2 * app.yardStep/app.stepsPerSecond#pixels per step^2
+    app.maxSpeed = app.velocity
+    app.acceleration = 0.2 * app.yardStep/app.stepsPerSecond
     app.fieldSides = [30, app.width-30]
     app.maxBallVelo = 6
     app.mouseX = 0
@@ -947,24 +954,15 @@ def onAppStart(app):
     loadOffensiveRoutes(app)
     loadOffensiveFormations(app, firstTime =True)
     loadStats(app)
-    
     loadFieldButtons(app)
     loadOffensiveMenuButtons(app)
     resetApp(app)
+
     app.isField = False
     app.isMainMenu = True
     app.isOffensiveMenu = False
     app.isMainMenuLabelHovering = False
     app.isWRMenu = True
-    
-
-def loadStats(app):
-    app.numCompletions = 0
-    app.attempts = 0
-    app.totalYards = 0
-    app.ints = 0
-    app.qbRun = True
-    app.statsButton = StatsButton(app.width - 100, 130, 130, 40, 'Stats')
 
 def resetApp(app, isField=True):
     for position in app.oFormation:
@@ -1095,15 +1093,9 @@ def loadOffensiveFormations(app, firstTime = False):
                   'RB': RunningBack(app, app.width//2 + 35, app.lineOfScrimmage+70,
                                 dx, dy, app.rbRouteList[2]),
                  }
-
-    # app.singleBackOriginalLocations = copy.deepcopy(app.singleBack)
-    # app.shotgunOriginalLocations = copy.deepcopy(app.shotgun)
-    # app.spreadOriginalLocations = copy.deepcopy(app.spread)
-    # app.bunchOriginalLocations = copy.deepcopy(app.bunch)
     app.oFormation = app.singleBack
 
     app.ball = Ball(app.oFormation['C'].cx,app.oFormation['C'].cy,app.oFormation['C'])
-                        #target x and target y are self location
 
 def loadOffensiveRoutes(app):
     #Routes are in (yards, dx, dy) format where yards are steps.
@@ -1245,13 +1237,13 @@ def initializeCoverOne(app):
                        }
     coverOne |= toUnionCoverOne
     return coverOne
+
 def loadZones(app):
-    fieldLeft = 30 #change this
+    fieldLeft = 30
     fieldRight = app.width - 30
-    fieldWidth = (app.width - 60) #in pixels
-    zones = dict()       #(left, right, top, bottom, cx, cy) in pixels
-                                        
-    
+    fieldWidth = (app.width - 60)
+    zones = dict()
+
     zones['middleDeep'] = Zone(fieldWidth/5 + fieldLeft, 
                                        fieldRight - fieldWidth/5,  0, 
                                         app.lineOfScrimmage - 10*app.yardStep, 
@@ -1266,7 +1258,6 @@ def loadZones(app):
     # zones['rightIntermediate'] = Zone( 3*fieldWidth//4 + 30, app.lineOfScrimmage - 6)
     # zones['leftDeep'] = Zone(fieldWidth//4+30, app.lineOfScrimmage - 12) 
     # zones['rightDeep'] = Zone(3*fieldWidth//4+30, app.lineOfScrimmage - 12)
-    
     app.zones = zones
 
 def loadOffensiveMenuButtons(app):
@@ -1367,6 +1358,7 @@ def getTELocations(app):
         if isinstance(player, TightEnd):
             teLocations.append(player)
     return teLocations
+
 def getRBLocations(app):
     rbLocations = []
     for position in app.oFormation:
@@ -1472,9 +1464,11 @@ def getBallPlacement(target, app):
     correctedX = ballX + ballToselfX * app.yardStep*0.5
     correctedY = ballY + ballToselfY * app.yardStep*0.5
     return correctedX, correctedY
+
 def getRadiusEndpoint(cx, cy, r, theta):
     return (cx + r*math.cos(math.radians(theta)),
             cy - r*math.sin(math.radians(theta)))
+
 def getRadiusAndAngleToEndpoint(cx, cy, targetX, targetY):
     radius = distance(cx, cy, targetX, targetY)
     angle = math.degrees(math.atan2(cy-targetY, targetX-cx)) % 360
@@ -1488,8 +1482,6 @@ def correctPlayers(app):
     players = list(app.oFormation.values()) + list(app.dFormation.values())
     for player in players:
         player.cy += offset
-
-### Mouse Functions ###
 
 def checkFieldButtons(app, mx, my):
     if (app.exportButton.text == "Export Play" and 
@@ -1802,7 +1794,6 @@ def drawMainMenu(app):
                 7, 7, fill='black', align='center')
     drawCircle(app.width-190, app.height-60, 18,
                     fill=customComplimentRed, border='black')
-        
 
 def drawFieldButtons(app):
     for button in app.fieldButtons:
@@ -1827,7 +1818,6 @@ def drawOffensiveMenu(app):
     app.importButton.draw()
     app.exportButton.draw()
     app.menuInstructionsButton.draw()
-    #drawRoutes(app)
     drawOffense(app)
     if app.menuInstructionsButton.isInstructions:
         drawMenuInstructionsMenu(app)
@@ -2011,7 +2001,7 @@ def checkLegalNormalPlayer(formation, position):
 ############
 ### Main ###
 ############
-        
+
 def main():
     runApp()
 
