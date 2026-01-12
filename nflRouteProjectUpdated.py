@@ -1875,13 +1875,22 @@ def drawMenuInstructionsMenu(app):
                 fill=rgb(40, 40, 40), lineWidth=2, opacity=70)
 
 def drawField(app, scrimmageLine=True):
+    offset = 0
     customGreen = rgb(27, 150, 85)
+    if app.ball.cy <= 10*app.yardStep:
+        offset = 10*app.yardStep - app.ball.cy
     drawRect(0, 0, app.width, app.height, fill=customGreen)
     tenCount=1
     fiveCount=0
     #Draw Yard Lines
-    for i in range(app.height, 0, -app.yardStep):
+    goalLine = app.lineOfScrimmage-app.yardStep*85
+    for i in range(app.height, goalLine, -app.yardStep):
+        i += offset
         fiveCount+=1
+        if i < 0 or i > app.height:
+            if fiveCount%10==0:
+                tenCount+=1
+            continue
         if fiveCount%5==0:
             drawLine(30+app.sideLineOffset, i, 
                         app.width-30-app.sideLineOffset, i, fill='white')
